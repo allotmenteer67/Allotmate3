@@ -56,6 +56,9 @@
   .btn-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
 
   .alert{display:flex; gap:10px; align-items:center; padding:14px; border-radius:var(--radius); margin-bottom:8px; font-size:15px; border-left:5px solid var(--brick); background:#F7E9E4;}
+  .alert span{flex:1;}
+  .alert-dismiss{background:none; border:none; font-size:18px; opacity:0.5; padding:4px 6px; flex-shrink:0; color:inherit;}
+  .alert-dismiss:hover{opacity:1;}
   .alert.frost{border-left-color:var(--slate); background:#E7EDEE;}
   .alert.wind{border-left-color:var(--mustard); background:#F5EBD8;}
   .alert.placing{border-left-color:var(--leaf); background:#EDF2E6;}
@@ -210,7 +213,6 @@
 
 <nav class="tabs" id="tabs">
   <button data-view="map" class="active">My Plot</button>
-  <button data-view="greenhouse">Greenhouse</button>
   <button data-view="jobs">Tasks</button>
   <button data-view="crops">Crops</button>
   <button data-view="history">History</button>
@@ -232,14 +234,6 @@
       <h2>Ready to move</h2>
       <div class="shelf-strip" id="shelfStrip"></div>
       <p class="map-help">Tap something to plant it out or harvest it.</p>
-    </section>
-  </div>
-
-  <!-- GREENHOUSE -->
-  <div class="view" id="view-greenhouse">
-    <section class="panel">
-      <h2>Greenhouse</h2>
-      <p class="muted" id="greenhouseTabHint">Tap this tab any time to jump straight to your greenhouse or polytunnel. Nothing added yet? Drop one onto your plot from the map first.</p>
     </section>
   </div>
 
@@ -609,8 +603,8 @@ async function lookupCropOnline(query, targetElId){
     const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`);
     if(!res.ok){ el.innerHTML = '<p class="muted">Nothing found online for that.</p>'; return; }
     const data = await res.json();
-    const extract = (data.extract||'').slice(0,220);
-    el.innerHTML = `<div class="muted lookup-box" style="font-size:13px; background:var(--paper); padding:8px 10px; border-radius:6px;"><strong>${escapeHTML(data.title||query)}:</strong> ${escapeHTML(extract)}${extract.length>=220?'...':''}</div>`;
+    const extract = data.extract||'';
+    el.innerHTML = `<div class="muted lookup-box" style="font-size:13px; background:var(--paper); padding:8px 10px; border-radius:6px;"><strong>${escapeHTML(data.title||query)}:</strong> ${escapeHTML(extract)}</div>`;
   }catch(e){ el.innerHTML = '<p class="muted">Could not reach the internet for that.</p>'; }
 }
 
@@ -636,6 +630,7 @@ function cropColor(crop){ return (crop && crop.color) || (crop ? colorForCropNam
 /* ======================= STATE ======================= */
 let STATE = { crops:[], beds:[], features:[], trays:[], tasks:[], harvests:[], settings:{} };
 let LAST_WEATHER = null;
+let dismissedAlertKeys = new Set();
 let placingMode = null;
 let outlineEditing = false;
 let activeTier = {}; // featId -> tierId, transient (not persisted)
@@ -693,23 +688,11 @@ function goToTab(view){
   document.querySelectorAll('nav.tabs button[data-view]').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active', v.id==='view-'+view));
 }
-function greenhouseStructures(){
-  return STATE.features.filter(f=>f.type==='greenhouse'||f.type==='polytunnel');
-}
-function openGreenhouseFromTab(){
-  const structs = greenhouseStructures();
-  if(structs.length===1){ openStructureDetail(structs[0]); return; }
-  if(structs.length===0) return;
-  const opts = structs.map(f=>`<button class="type-opt" data-feat="${f.id}"><span class="icon">${FEATURE_TYPES[f.type].icon}</span>${escapeHTML(f.label||FEATURE_TYPES[f.type].label)}</button>`).join('');
-  openModal(`<h3>Which one?</h3><div class="type-grid">${opts}</div>`);
-  modalContent.querySelectorAll('[data-feat]').forEach(b=>b.addEventListener('click', ()=> openStructureDetail(featureById(b.dataset.feat))));
-}
 document.getElementById('tabs').addEventListener('click',(e)=>{
   const btn = e.target.closest('button[data-view]'); if(!btn) return;
   if(outlineEditing && btn.dataset.view!=='map'){ outlineEditing=false; toast('Outline saved'); }
   goToTab(btn.dataset.view);
   renderAll();
-  if(btn.dataset.view==='greenhouse') openGreenhouseFromTab();
 });
 const backdrop=document.getElementById('modalBackdrop'), modalContent=document.getElementById('modalContent');
 let scrollY_before_modal = 0;
@@ -946,7 +929,14 @@ async function processWeather(data){
     const soonRain = rain.slice(0,3).reduce((a,b)=>a+b,0);
     if(soonRain < 2) alerts.push({key:'dry-'+days[0], type:'dry', msg:`🌦️ No rain expected for a few days — worth checking if anything needs a drink.`});
   }
-  if(!placingMode) document.getElementById('alertsBox').innerHTML = alerts.map(a=>`<div class="alert ${a.type==='frost'?'frost':(a.type==='wind'||a.type==='dry'?'wind':'')}"><span>${a.msg}</span></div>`).join('');
+  const visibleAlerts = alerts.filter(a=>!dismissedAlertKeys.has(a.key));
+  if(!placingMode){
+    document.getElementById('alertsBox').innerHTML = visibleAlerts.map(a=>`<div class="alert ${a.type==='frost'?'frost':(a.type==='wind'||a.type==='dry'?'wind':'')}"><span>${a.msg}</span><button class="alert-dismiss" data-dismiss="${a.key}">✕</button></div>`).join('');
+    document.querySelectorAll('[data-dismiss]').forEach(b=>b.addEventListener('click', ()=>{
+      dismissedAlertKeys.add(b.dataset.dismiss);
+      b.closest('.alert').remove();
+    }));
+  }
   const todaySnap = getTodayWeatherSnapshot();
   document.getElementById('wxIcon').textContent = todaySnap ? `${todaySnap.icon} ${todaySnap.tempMax}\u00B0` : 'Weather';
 
@@ -1304,6 +1294,10 @@ function getTightBounds(){
   const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
   return {minX:Math.min(...xs), minY:Math.min(...ys), maxX:Math.max(...xs), maxY:Math.max(...ys)};
 }
+function capToPlotSize(w,h){
+  const tb = getTightBounds();
+  return {w: Math.min(w, tb.maxX-tb.minX), h: Math.min(h, tb.maxY-tb.minY)};
+}
 let currentPPM = 40;
 
 function renderMap(){
@@ -1407,6 +1401,14 @@ function onCanvasBackgroundClick(e){
   const my = bounds.minY + (e.clientY-rect.top)/currentPPM;
   requireUnlock(()=> openCellChooser(snapMap(mx), snapMap(my)));
 }
+function siblingMapRectsOf(el){
+  const rects = [];
+  el.parentElement.querySelectorAll('.mapObj').forEach(other=>{
+    if(other===el) return;
+    rects.push({left:parseFloat(other.style.left), top:parseFloat(other.style.top), width:parseFloat(other.style.width), height:parseFloat(other.style.height)});
+  });
+  return rects;
+}
 function wireMapObj(el, bounds){
   blockTouchScroll(el);
   el.addEventListener('pointerdown', (e)=>{
@@ -1425,6 +1427,11 @@ function wireMapObj(el, bounds){
     const tbForReadout = getTightBounds();
     const obj0 = el.dataset.kind==='bed' ? bedById(el.dataset.id) : featureById(el.dataset.id);
     const objW = obj0 ? obj0.w : 0, objH = obj0 ? obj0.h : 0;
+    const siblings = siblingMapRectsOf(el);
+    const mw = parseFloat(el.style.width), mh = parseFloat(el.style.height);
+    const minLeft = (tbForReadout.minX-bounds.minX)*currentPPM, minTop = (tbForReadout.minY-bounds.minY)*currentPPM;
+    const maxLeft = (tbForReadout.maxX-bounds.minX)*currentPPM - mw, maxTop = (tbForReadout.maxY-bounds.minY)*currentPPM - mh;
+    function blocked(l,t){ return siblings.some(r=>rectOverlap(l,t,mw,mh,r)); }
     const readout = document.createElement('div');
     readout.className = 'coord-readout';
     el.parentElement.appendChild(readout);
@@ -1450,7 +1457,14 @@ function wireMapObj(el, bounds){
       ev.preventDefault();
       const dx=ev.clientX-startX, dy=ev.clientY-startY;
       if(Math.abs(dx)>5||Math.abs(dy)>5) moved=true;
-      if(moved){ el.style.left=(startLeft+dx)+'px'; el.style.top=(startTop+dy)+'px'; el.style.zIndex=5; el.style.cursor='grabbing'; updateReadout(); }
+      if(!moved) return;
+      const wantLeft = Math.min(Math.max(minLeft, startLeft+dx), maxLeft);
+      const wantTop = Math.min(Math.max(minTop, startTop+dy), maxTop);
+      const curLeft = parseFloat(el.style.left), curTop = parseFloat(el.style.top);
+      if(!blocked(wantLeft, wantTop)){ el.style.left=wantLeft+'px'; el.style.top=wantTop+'px'; }
+      else if(!blocked(wantLeft, curTop)){ el.style.left=wantLeft+'px'; }
+      else if(!blocked(curLeft, wantTop)){ el.style.top=wantTop+'px'; }
+      el.style.zIndex=5; el.style.cursor='grabbing'; updateReadout();
     }
     async function onUp(ev){
       document.removeEventListener('pointermove',onMove); document.removeEventListener('pointerup',onUp);
@@ -1594,8 +1608,9 @@ function openFeatureDetail(feat){
     <div class="btn-row"><button class="btn" id="mSave">Save</button><button class="btn danger" id="mDel">Remove this ${escapeHTML(info.label.toLowerCase())} from the map</button></div>`);
   document.getElementById('mSave').addEventListener('click', async ()=>{
     feat.label=document.getElementById('mLabel').value.trim()||info.label;
-    feat.w = Math.max(0.15, snapMap(parseFloat(document.getElementById('mW').value)||feat.w));
-    feat.h = Math.max(0.15, snapMap(parseFloat(document.getElementById('mH').value)||feat.h));
+    { const cap = capToPlotSize(parseFloat(document.getElementById('mW').value)||feat.w, parseFloat(document.getElementById('mH').value)||feat.h);
+      feat.w = Math.max(0.15, snapMap(cap.w));
+      feat.h = Math.max(0.15, snapMap(cap.h)); }
     feat.locked = document.getElementById('mLocked').checked;
     await put('features',feat); await afterChange(); closeModal();
   });
@@ -1699,8 +1714,9 @@ function openBedDetail(bedId, highlightId){
     }));
     document.getElementById('mSave').addEventListener('click', async ()=>{
       bed.name=document.getElementById('mName').value.trim()||bed.name; bed.color=picked;
-      const newW = Math.max(0.3, snapMap(parseFloat(document.getElementById('mW').value)||bed.w));
-      const newH = Math.max(0.3, snapMap(parseFloat(document.getElementById('mH').value)||bed.h));
+      const cap = capToPlotSize(parseFloat(document.getElementById('mW').value)||bed.w, parseFloat(document.getElementById('mH').value)||bed.h);
+      const newW = Math.max(0.3, snapMap(cap.w));
+      const newH = Math.max(0.3, snapMap(cap.h));
       if(bed.shape && (newW!==bed.w || newH!==bed.h)) bed.shape = scaleLocalShape(bed.shape, bed.w, bed.h, newW, newH);
       bed.w = newW; bed.h = newH;
       bed.group = document.getElementById('mGroup').value.trim();
@@ -2074,8 +2090,9 @@ function openStructureDetail(feat, highlightTrayId){
     document.getElementById('mBack').addEventListener('click', ()=>openStructureDetail(feat));
     document.getElementById('mSave').addEventListener('click', async ()=>{
       feat.label = document.getElementById('mLabel').value.trim()||info.label;
-      feat.w = Math.max(0.3, snapMap(parseFloat(document.getElementById('mW').value)||feat.w));
-      feat.h = Math.max(0.3, snapMap(parseFloat(document.getElementById('mH').value)||feat.h));
+      { const cap = capToPlotSize(parseFloat(document.getElementById('mW').value)||feat.w, parseFloat(document.getElementById('mH').value)||feat.h);
+        feat.w = Math.max(0.3, snapMap(cap.w));
+        feat.h = Math.max(0.3, snapMap(cap.h)); }
       feat.locked = document.getElementById('mLocked').checked;
       await put('features',feat); await afterChange(); openStructureDetail(feat);
     });
