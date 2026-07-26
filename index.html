@@ -1,0 +1,2843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Plot</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#3F6644">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --paper:#EDEFE2; --paper-dark:#E2E4D2; --card:#F6F7EE; --ink:#2B2A22; --soil:#4A3728;
+    --leaf:#3F6644; --leaf-light:#7E9A6D; --slate:#435760; --mustard:#B9852B; --brick:#A23B2D;
+    --line:#C9C6AE; --line-soft:#DBD9C4; --radius:8px;
+  }
+  *{box-sizing:border-box;}
+  html,body{overscroll-behavior:none;}
+  body{margin:0;}
+  html,body{background:var(--paper); color:var(--ink); font-family:'Karla',sans-serif; font-size:17px; line-height:1.5;}
+  h1,h2,h3{font-family:'Zilla Slab',serif; color:var(--soil); margin:0;}
+  button{font-family:inherit; cursor:pointer;}
+  input,select,textarea{font-family:inherit; font-size:16px;}
+
+  .top{background:var(--card); padding:10px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .top .leaf-mark{font-size:24px;}
+  .top h1{font-size:21px; border:none; background:transparent; padding:2px 4px; border-bottom:2px dashed transparent; max-width:42vw;}
+  .top h1:hover,.top h1:focus{border-bottom-color:var(--line); outline:none;}
+  .icon-btn{background:var(--paper); border:1.5px solid var(--line); border-radius:8px; width:32px; height:32px; color:var(--soil); flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;}
+  .icon-btn:disabled{opacity:0.3;}
+  .icon-btn svg{width:16px; height:16px;}
+
+  nav.tabs{display:flex; gap:2px; background:var(--paper-dark); padding:0 10px; overflow-x:auto; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:10; align-items:center;}
+  nav.tabs button{background:none; border:none; padding:9px 13px; min-height:38px; font-size:14.5px; font-weight:700; color:var(--soil); opacity:0.55; border-bottom:3px solid transparent; white-space:nowrap; font-family:'Zilla Slab',serif;}
+  nav.tabs button.active{opacity:1; border-bottom-color:var(--leaf);}
+  .wx-btn{background:var(--paper); border:1.5px solid var(--line); border-radius:20px; padding:5px 11px; font-size:13.5px; display:flex; align-items:center; gap:5px; margin:0 2px; font-weight:700; color:var(--soil);}
+
+  main{max-width:900px; margin:0 auto; padding:16px 14px 60px;}
+  .view{display:none;} .view.active{display:block;}
+
+  section.panel{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:16px;}
+  section.panel > h2{font-size:18px; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid var(--line-soft); display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;}
+  .muted{opacity:0.6; font-size:14px;}
+  .tiny-muted{opacity:0.55; font-size:12px;}
+  .empty-note{padding:16px; text-align:center; opacity:0.55; font-size:15px; font-style:italic;}
+
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:6px; background:var(--leaf); color:#fff; border:1.5px solid transparent; padding:12px 18px; min-height:46px; border-radius:var(--radius); font-weight:700; font-size:15px;}
+  .btn:hover{background:#345638;}
+  .btn.secondary{background:transparent; color:var(--soil); border:1.5px solid var(--line);}
+  .btn.secondary:hover{background:var(--paper-dark);}
+  .btn.big{padding:16px 22px; font-size:16.5px; width:100%;}
+  .btn.small{padding:8px 12px; min-height:auto; font-size:13.5px;}
+  .btn.danger{background:transparent; color:var(--brick); border:1.5px solid var(--brick);}
+  .btn:disabled{opacity:0.4; cursor:not-allowed;}
+  .btn-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+
+  .alert{display:flex; gap:10px; align-items:center; padding:14px; border-radius:var(--radius); margin-bottom:8px; font-size:15px; border-left:5px solid var(--brick); background:#F7E9E4;}
+  .alert.frost{border-left-color:var(--slate); background:#E7EDEE;}
+  .alert.wind{border-left-color:var(--mustard); background:#F5EBD8;}
+  .alert.placing{border-left-color:var(--leaf); background:#EDF2E6;}
+
+  .shelf-strip{display:flex; flex-direction:column; padding:4px 2px 10px;}
+  .map-help{font-size:13.5px; opacity:0.6; margin-top:10px; text-align:center;}
+
+  .map-wrap{overflow:auto; max-height:78vh; touch-action:pan-x pan-y;}
+  .map-canvas{position:relative; margin:0 auto; touch-action:none;}
+  svg.ground{position:absolute; left:0; top:0; pointer-events:none;}
+  .ground-poly{stroke:var(--soil); stroke-width:3;}
+  .grid-layer{opacity:0; transition:opacity 0.12s;}
+  .coord-readout{position:absolute; background:var(--soil); color:#fff; font-size:12.5px; font-weight:700; padding:4px 9px; border-radius:12px; pointer-events:none; white-space:nowrap; z-index:20; transform:translate(-50%,-140%);}
+  .grid-layer.show{opacity:1;}
+  .mapObj{position:absolute; border-radius:6px; border:2px solid var(--leaf-light); background:#EAF0E2;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+    font-size:11.5px; font-weight:700; color:var(--soil); overflow:hidden; touch-action:none; cursor:grab; padding:2px; line-height:1.15;}
+  .mapObj .icon{line-height:1;}
+  .mapObj .lbl{max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 2px;}
+  .mapObj.shaped{border:none; background:transparent; border-radius:0; overflow:visible;}
+  .mapObj.type-greenhouse,.mapObj.type-polytunnel{background:#EAF2F1; border-color:var(--slate);}
+  .mapObj.type-shed{background:#EFE7DA; border-color:var(--soil);}
+  .mapObj.type-fence{background:repeating-linear-gradient(45deg, #EFE7DA, #EFE7DA 4px, #E4DCC8 4px, #E4DCC8 8px); border-color:var(--soil);}
+  .mapObj.type-gate{background:#EFE7DA; border-color:var(--soil);}
+  .mapObj.type-path{background:#DCD6C2; border-color:var(--line);}
+  .mapObj.type-water{background:#E4EEF2; border-color:#7C9DAA;}
+  .mapObj.type-compost{background:#EAE4D4; border-color:var(--mustard);}
+  .mapObj.type-basket{background:#F3ECD9; border-color:var(--mustard);}
+  .mapObj.type-tree{background:#E8F0DE; border-color:var(--leaf); border-radius:50%;}
+  .mapObj.raised{background:#F1E6D6; border-color:#8B5A2B;}
+  .mapObj.placeable{box-shadow:0 0 0 3px var(--leaf); cursor:pointer;}
+  .lock-badge{position:absolute; top:2px; left:3px; font-size:10px;}
+  .vertex-handle{position:absolute; width:24px; height:24px; border-radius:50%; background:var(--leaf); border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.35); touch-action:none; cursor:grab; transform:translate(-50%,-50%); z-index:3;}
+  .map-toolbar{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:45; display:flex; gap:10px; flex-wrap:wrap; justify-content:center; background:var(--card); border:1.5px solid var(--line); border-radius:30px; padding:8px 10px; box-shadow:0 6px 18px rgba(0,0,0,0.28); max-width:92vw;}
+  .fams-dot-row{display:flex; gap:2px; flex-wrap:wrap; justify-content:center; margin-top:1px;}
+
+  .fam-dot{display:inline-block; width:9px; height:9px; border-radius:50%; flex-shrink:0;}
+  .fam-Legumes{background:var(--leaf);} .fam-Brassicas{background:var(--mustard);} .fam-Alliums{background:var(--slate);}
+  .fam-Roots{background:var(--soil);} .fam-Solanaceae{background:var(--brick);} .fam-Cucurbits{background:var(--leaf-light);} .fam-Other{background:#8a8a7a;}
+
+  .type-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px;}
+  .type-opt{display:flex; flex-direction:column; align-items:center; gap:6px; padding:14px 6px; border:1.5px solid var(--line); border-radius:var(--radius); background:var(--paper); font-size:13px; font-weight:700;}
+  .type-opt:hover{background:var(--paper-dark);}
+  .type-opt .icon{font-size:26px;}
+
+  .swatch-row{display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 14px;}
+  .swatch{width:34px; height:34px; border-radius:50%; border:3px solid transparent; cursor:pointer;}
+  .swatch.picked{border-color:var(--soil);}
+  #historySortRow button.picked{background:var(--leaf); color:#fff; border-color:var(--leaf);}
+
+  ul.tasklist{list-style:none; margin:0; padding:0;}
+  ul.tasklist li{display:flex; align-items:center; gap:12px; padding:12px 4px; border-bottom:1px solid var(--line-soft);}
+  ul.tasklist li:last-child{border-bottom:none;}
+  ul.tasklist li.done{opacity:0.45;} ul.tasklist li.done .ttitle{text-decoration:line-through;}
+  .ttitle{flex:1; font-size:15.5px; cursor:pointer;}
+  .tdate{font-size:13px; opacity:0.7; white-space:nowrap;}
+  .tdate.overdue{color:var(--brick); font-weight:700;}
+  input[type=checkbox]{width:22px; height:22px; accent-color:var(--leaf); flex-shrink:0;}
+
+  .weather-strip{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px;}
+  .wcard{min-width:74px; background:var(--paper); border:1px solid var(--line-soft); border-radius:var(--radius); padding:10px 6px; text-align:center; flex-shrink:0;}
+  .wcard .d{font-size:12px; font-weight:700; font-family:'Zilla Slab',serif;}
+  .wcard .icon{font-size:21px; margin:5px 0;} .wcard .t{font-size:12.5px;}
+  .wcard.severe{border-color:var(--brick); background:#F7E9E4;}
+
+  .tray-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px;}
+  .tray-card{border:1px solid var(--line-soft); border-radius:var(--radius); padding:14px; background:var(--paper);}
+  .tray-card.ready{border-color:var(--leaf); background:#EDF2E6;}
+  .tray-card.empty{border-style:dashed; opacity:0.7;}
+  .tray-card h4{font-family:'Zilla Slab',serif; font-size:16px; margin:0 0 4px; display:flex; align-items:center; gap:6px;}
+  .tray-card .meta{font-size:13px; opacity:0.7; margin-bottom:8px;}
+  .loc-tag{display:inline-block; font-size:11px; font-weight:700; text-transform:uppercase; opacity:0.55; margin-bottom:4px;}
+
+  .crop-card{border:1px solid var(--line-soft); border-radius:var(--radius); padding:12px 14px; margin-bottom:8px; background:var(--paper);}
+  .crop-head{display:flex; align-items:center; gap:8px;}
+  .crop-head input[type=text]{border:none; background:transparent; font-family:'Zilla Slab',serif; font-size:16.5px; font-weight:600; color:var(--soil); flex:1; padding:2px 0;}
+  details.timings{margin-top:8px;} details.timings summary{cursor:pointer; font-size:13.5px; color:var(--leaf); font-weight:700;}
+  .timing-row{display:flex; align-items:center; gap:8px; margin-top:8px; font-size:14px;} .timing-row input{width:70px;}
+
+  .form-row{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
+  .form-row > div{flex:1; min-width:140px;}
+  label{display:block; font-size:13.5px; font-weight:700; opacity:0.7; margin-bottom:4px;}
+  input[type=text],input[type=date],input[type=number],select,textarea{width:100%; padding:10px; border:1.5px solid var(--line); border-radius:var(--radius); background:#fff;}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--leaf-light); outline-offset:0;}
+
+  .toggle-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0;}
+  .switch{position:relative; width:50px; height:28px; flex-shrink:0;}
+  .switch input{opacity:0; width:0; height:0;}
+  .slider{position:absolute; inset:0; background:var(--line); border-radius:20px; transition:0.15s;}
+  .slider:before{content:""; position:absolute; width:22px; height:22px; left:3px; top:3px; background:#fff; border-radius:50%; transition:0.15s;}
+  .switch input:checked + .slider{background:var(--leaf);} .switch input:checked + .slider:before{transform:translateX(22px);}
+
+  details.adv{margin-top:6px;} details.adv summary{cursor:pointer; font-weight:700; color:var(--leaf); font-size:14.5px; padding:6px 0;}
+
+  .modal-backdrop{display:none; position:fixed; inset:0; background:rgba(43,42,34,0.45); z-index:50; align-items:flex-end; justify-content:center;}
+  .modal-backdrop.open{display:flex;}
+  .modal{background:var(--card); border-radius:16px 16px 0 0; padding:64px 20px 20px; max-width:480px; width:100%; max-height:88vh; overflow-y:auto; overscroll-behavior:contain; border:1px solid var(--line); animation:slideup 0.18s ease-out;}
+  .modal.fullscreen{position:fixed; inset:0; max-width:none; max-height:none; border-radius:0; margin:0; animation:none;}
+  @media(min-width:640px){.modal-backdrop{align-items:center;} .modal{border-radius:var(--radius);}}
+  @keyframes slideup{from{transform:translateY(20px); opacity:0;} to{transform:translateY(0); opacity:1;}}
+  .modal h3{margin-bottom:14px; font-size:20px;}
+  .back-link{background:none; border:none; color:var(--leaf); font-weight:700; padding:0 0 12px; font-size:14.5px;}
+  .modal-topbar{position:fixed; top:0; left:0; right:0; max-width:480px; margin:0 auto; padding:10px 14px; background:var(--card); border-bottom:1px solid var(--line-soft); z-index:55; display:flex; justify-content:flex-end; gap:8px;}
+  .modal.fullscreen .modal-topbar{max-width:none;}
+
+  .tier-row{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;}
+  .tier-pill{padding:6px 12px; border-radius:16px; border:1.5px solid var(--line); background:var(--paper); font-size:13px; font-weight:700; color:var(--soil);}
+  .tier-pill.active{background:var(--leaf); color:#fff; border-color:var(--leaf);}
+
+  .bed-picture-wrap{overflow-x:auto; margin-bottom:8px;}
+  .bed-picture{position:relative; border-radius:10px; border:2px solid var(--line); background:var(--paper); touch-action:none; overflow:hidden; margin:0 auto;}
+  .picgrid{position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity 0.12s;}
+  .pic-ruler{position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity 0.12s;}
+  .pic-ruler.show{opacity:1;}
+  .picgrid.show{opacity:1;}
+  .crop-box{position:absolute; border:2px solid var(--leaf); background:#ffffffd9; border-radius:6px; display:flex; align-items:center; gap:4px; padding:2px 7px; font-size:11.5px; font-weight:700; overflow:hidden; touch-action:none; cursor:grab; white-space:nowrap;}
+  .crop-box.empty{border-style:dashed; border-color:var(--line); background:#ffffff90; color:#888; font-weight:400;}
+  .crop-box.hl{border-color:var(--brick); box-shadow:0 0 0 4px rgba(162,59,45,0.3); animation:pulseHL 1.3s ease-in-out 3;}
+  @keyframes pulseHL{0%,100%{box-shadow:0 0 0 4px rgba(162,59,45,0.3);} 50%{box-shadow:0 0 0 8px rgba(162,59,45,0.12);}}
+  .resize-handle-sm{position:absolute; right:0; bottom:0; width:20px; height:20px; background:var(--leaf); border:2px solid #fff; border-radius:3px 0 6px 0; touch-action:none; cursor:nwse-resize; box-shadow:0 1px 4px rgba(0,0,0,0.3);}
+  .picture-help{font-size:12.5px; opacity:0.55; text-align:center; margin:0 0 14px;}
+
+  .planting-row{display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--line-soft); flex-wrap:wrap;}
+  .planting-row.ready{background:#EDF2E6;}
+  .planting-row .pname{flex:1; font-size:15.5px;}
+  .planting-row .pdate{font-size:13px; opacity:0.65;}
+  .planting-row .inline-edit{font-size:14px; font-family:inherit; color:var(--ink); border:1.5px solid var(--line); border-radius:6px; padding:5px 8px; width:auto; max-width:140px; margin-left:auto; text-align:right;}
+  .row-heading{font-size:12px; text-transform:uppercase; font-weight:700; opacity:0.55; margin-top:10px;}
+  .warn-note{font-size:13.5px; color:var(--brick); margin-top:8px; background:#F7E9E4; padding:8px 10px; border-radius:var(--radius);}
+  .lookup-box{margin-top:8px;}
+  .group-links{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;}
+
+  .rating-bar{display:flex; gap:3px; border-radius:8px; overflow:hidden; height:46px; border:1.5px solid var(--line); background:#fff;}
+  .rate-seg{flex:1; border:none; background:transparent; cursor:pointer; padding:0;}
+  .rate-seg.filled{background:var(--leaf);}
+  .rating-readout{text-align:center; font-family:'Zilla Slab',serif; font-size:22px; font-weight:700; color:var(--soil); margin:8px 0 10px;}
+
+  .toast{position:fixed; left:50%; bottom:24px; transform:translate(-50%,20px); background:var(--soil); color:#fff; padding:12px 18px; border-radius:24px; font-size:14.5px; opacity:0; pointer-events:none; transition:0.2s; z-index:100;}
+  .toast.show{opacity:1; transform:translate(-50%,0);}
+
+  footer.hint{text-align:center; font-size:13px; opacity:0.45; padding:24px 0 10px;}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <span class="leaf-mark">🌿</span>
+  <h1 id="plotName" contenteditable="true" spellcheck="false">My Plot</h1>
+  <button class="icon-btn" id="btnUndo" title="Undo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7 4 12l5 5"/><path d="M4 12h11a5 5 0 0 1 0 10h-1"/></svg></button>
+  <button class="icon-btn" id="btnRedo" title="Redo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l5 5-5 5"/><path d="M20 12H9a5 5 0 0 0 0 10h1"/></svg></button>
+</div>
+
+<nav class="tabs" id="tabs">
+  <button data-view="map" class="active">My Plot</button>
+  <button data-view="greenhouse">Greenhouse</button>
+  <button data-view="jobs">Tasks</button>
+  <button data-view="crops">Crops</button>
+  <button data-view="history">History</button>
+  <button class="wx-btn" id="wxBtn"><span id="wxIcon">Weather</span></button>
+  <button data-view="setup">Setup</button>
+</nav>
+
+<main>
+  <!-- MAP (home) -->
+  <div class="view active" id="view-map">
+    <div id="placingBanner"></div>
+    <div id="alertsBox"></div>
+
+    <section class="panel">
+      <div id="mapArea"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Ready to move</h2>
+      <div class="shelf-strip" id="shelfStrip"></div>
+      <p class="map-help">Tap something to plant it out or harvest it.</p>
+    </section>
+  </div>
+
+  <!-- GREENHOUSE -->
+  <div class="view" id="view-greenhouse">
+    <section class="panel">
+      <h2>Greenhouse</h2>
+      <p class="muted" id="greenhouseTabHint">Tap this tab any time to jump straight to your greenhouse or polytunnel. Nothing added yet? Drop one onto your plot from the map first.</p>
+    </section>
+  </div>
+
+  <!-- TASKS -->
+  <div class="view" id="view-jobs">
+    <section class="panel"><h2>Coming up</h2><ul class="tasklist" id="upcomingList"></ul></section>
+    <section class="panel">
+      <h2>Add a task</h2>
+      <div class="form-row">
+        <div style="flex:2;"><label>What needs doing</label><input type="text" id="taskTitle" placeholder="e.g. Water the polytunnel"></div>
+        <div><label>When</label><input type="date" id="taskDue"></div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label>Repeats</label>
+          <select id="taskRecur">
+            <option value="none">Just the once</option>
+            <option value="daily">Every day</option>
+            <option value="every3">Every few days</option>
+            <option value="weekly">Every week</option>
+            <option value="fortnightly">Every 2 weeks</option>
+            <option value="monthly">Every month</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn" id="btnAddTask">Add Task</button>
+    </section>
+    <section class="panel"><h2>Done</h2><ul class="tasklist" id="doneList"></ul></section>
+  </div>
+
+  <!-- CROPS -->
+  <div class="view" id="view-crops">
+    <section class="panel">
+      <h2>Crops I've grown</h2>
+      <p class="muted" style="margin-bottom:12px;">These appear automatically when you sow or plant something. Timings decide when tasks get suggested — change them any time.</p>
+      <button class="btn secondary" id="btnNewCrop" style="margin-bottom:12px;">+ Add one by hand</button>
+      <div id="cropList"></div>
+    </section>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="view" id="view-history">
+    <section class="panel">
+      <h2>History</h2>
+      <p class="muted" style="margin-bottom:10px;">Harvested and cleared crops land here.</p>
+      <div class="btn-row" id="historySortRow">
+        <button class="btn small secondary" data-sort="date">By date</button>
+        <button class="btn small secondary" data-sort="name">By name</button>
+        <button class="btn small secondary" data-sort="type">By type</button>
+        <button class="btn small secondary" data-sort="bed">By bed</button>
+      </div>
+      <div id="historyList" style="margin-top:12px;"></div>
+    </section>
+  </div>
+
+  <!-- SETUP -->
+  <div class="view" id="view-setup">
+    <section class="panel">
+      <h2>Where's your plot?</h2>
+      <p class="muted" style="margin-bottom:12px;">Just so we can show the right weather.</p>
+      <div class="form-row">
+        <div><label>Postcode</label><input type="text" id="postcodeInput" placeholder="e.g. SW1A 1AA"></div>
+        <div style="flex:0; align-self:flex-end;"><button class="btn secondary" id="btnLookupPostcode">Find it</button></div>
+      </div>
+      <p id="locStatus" class="muted"></p>
+    </section>
+
+    <section class="panel">
+      <h2>Bad weather alerts</h2>
+      <div class="toggle-row"><span>Warn me about frost, storms and heavy rain</span>
+        <label class="switch"><input type="checkbox" id="notifToggle"><span class="slider"></span></label>
+      </div>
+      <p class="muted" id="notifStatus"></p>
+      <div id="notifLevelBox" style="margin-top:10px; display:flex; flex-direction:column; gap:12px;">
+        <label style="display:flex; align-items:flex-start; gap:10px; font-weight:400;">
+          <input type="radio" name="notifLevel" value="quiet" style="width:20px; height:20px; margin-top:2px; flex-shrink:0;">
+          <span><strong>Just the facts</strong><br><span class="muted">Frost, storms, heavy rain — nothing else.</span></span>
+        </label>
+        <label style="display:flex; align-items:flex-start; gap:10px; font-weight:400;">
+          <input type="radio" name="notifLevel" value="advice" style="width:20px; height:20px; margin-top:2px; flex-shrink:0;">
+          <span><strong>Facts plus a few tips</strong><br><span class="muted">Also says which crops to cover, and nudges about watering in dry spells.</span></span>
+        </label>
+        <label style="display:flex; align-items:flex-start; gap:10px; font-weight:400;">
+          <input type="radio" name="notifLevel" value="chatty" style="width:20px; height:20px; margin-top:2px; flex-shrink:0;">
+          <span><strong>Keep me posted</strong><br><span class="muted">All of the above, plus a daily nudge if tasks are waiting.</span></span>
+        </label>
+      </div>
+      <details class="adv"><summary>Adjust how sensitive the alerts are</summary>
+        <div class="form-row" style="margin-top:10px;">
+          <div><label>Frost at or below (&deg;C)</label><input type="number" id="thFrost" value="0"></div>
+          <div><label>Heavy rain (mm/day)</label><input type="number" id="thRain" value="20"></div>
+          <div><label>Strong wind (km/h)</label><input type="number" id="thWind" value="50"></div>
+        </div>
+        <button class="btn secondary" id="btnSaveThresholds">Save</button>
+      </details>
+    </section>
+
+    <section class="panel">
+      <h2>Your plot's size, shape &amp; look</h2>
+      <p class="muted" style="margin-bottom:10px;">A starting size for the map. Saving a new size here scales whatever shape you already have to match — if you've reshaped the outline, that shape is kept, just bigger or smaller.</p>
+      <div class="form-row">
+        <div><label>Width (metres)</label><input type="number" step="0.1" id="plotWidthInput" placeholder="e.g. 10"></div>
+        <div><label>Depth (metres)</label><input type="number" step="0.1" id="plotDepthInput" placeholder="e.g. 6"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="btnSetPlotSize">💾 Save size</button>
+        <button class="btn secondary" id="btnReshape">Reshape outline</button>
+      </div>
+      <label style="margin-top:14px;">Ground colour</label>
+      <div class="swatch-row" id="groundSwatchRow"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Your beds &amp; structures</h2>
+      <p class="muted" style="margin-bottom:10px;">A quick way to find something to edit without hunting for it on the map.</p>
+      <div id="structureList"></div>
+    </section>
+
+    <section class="panel" id="sharePanel">
+      <h2>Share with other gardeners</h2>
+      <div id="shareBody"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Keep a backup</h2>
+      <p class="muted" style="margin-bottom:12px;">Save a copy of everything in case you get a new phone or computer.</p>
+      <div class="btn-row">
+        <button class="btn secondary" id="btnExport">Save a copy</button>
+        <label class="btn secondary" style="margin:0;">Load a copy<input type="file" id="importFile" accept="application/json" style="display:none;"></label>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="hint">Everything here is stored only on this device, and keeps working without a signal.</footer>
+
+<datalist id="cropSuggestions"></datalist>
+<datalist id="reasonSuggestions"></datalist>
+<div class="map-toolbar" id="outlineToolbar" style="display:none;"></div>
+<div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modalContent"></div></div>
+
+<script>
+/* ======================= DATA LAYER ======================= */
+const DB_NAME='plotbook4', DB_VERSION=1; let db;
+function openDB(){ return new Promise((resolve,reject)=>{
+  const req = indexedDB.open(DB_NAME, DB_VERSION);
+  req.onupgradeneeded = (e)=>{ const d=e.target.result;
+    for(const s of ['crops','beds','features','trays','tasks','harvests','meta']){
+      if(!d.objectStoreNames.contains(s)) d.createObjectStore(s,{keyPath: s==='meta'?'key':'id'});
+    }
+  };
+  req.onsuccess=(e)=>resolve(e.target.result); req.onerror=(e)=>reject(e);
+});}
+function txStore(name,mode='readonly'){ return db.transaction(name,mode).objectStore(name); }
+function getAll(store){ return new Promise((res,rej)=>{ const r=txStore(store).getAll(); r.onsuccess=()=>res(r.result); r.onerror=rej; }); }
+function put(store,obj){ return new Promise((res,rej)=>{ const r=txStore(store,'readwrite').put(obj); r.onsuccess=()=>res(obj); r.onerror=rej; }); }
+function del(store,id){ return new Promise((res,rej)=>{ const r=txStore(store,'readwrite').delete(id); r.onsuccess=()=>res(); r.onerror=rej; }); }
+function clearStore(name){ return new Promise((res,rej)=>{ const r=txStore(name,'readwrite').clear(); r.onsuccess=()=>res(); r.onerror=rej; }); }
+function getMeta(key,fallback){ return new Promise((res)=>{ const r=txStore('meta').get(key); r.onsuccess=()=>res(r.result?r.result.value:fallback); r.onerror=()=>res(fallback); }); }
+function setMeta(key,value){ return put('meta',{key,value}); }
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function addDays(iso,n){ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+function daysBetween(a,b){ return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000); }
+function dayLabel(iso){
+  if(!iso) return '';
+  const diff = daysBetween(todayISO(), iso);
+  if(diff===0) return 'Today'; if(diff===1) return 'Tomorrow'; if(diff===-1) return 'Yesterday';
+  const d = new Date(iso+'T00:00:00');
+  if(diff>1 && diff<7) return d.toLocaleDateString('en-GB',{weekday:'long'});
+  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+}
+function snapMap(v){ return Math.round(v*5)/5; }  // 20cm, for beds/sheds/greenhouses on the main map
+function snapFine(v){ return Math.round(v*10)/10; } // 10cm, for crops/trays within a picture
+
+/* ======================= CROP MATCHING ======================= */
+const KNOWN_CROPS = [
+  {name:'Tomato', family:'Solanaceae', sowToPotOn:42, transplantToHarvest:65, directSowToHarvest:null, tender:true, words:['tomato'], varieties:["Gardener's Delight",'Moneymaker','Sungold','Alicante','San Marzano']},
+  {name:'Chilli / Pepper', family:'Solanaceae', sowToPotOn:56, transplantToHarvest:75, directSowToHarvest:null, tender:true, words:['chilli','chili','pepper','capsicum'], varieties:['Scotch Bonnet','Jalapeno','Cayenne','Bell']},
+  {name:'Aubergine', family:'Solanaceae', sowToPotOn:56, transplantToHarvest:75, directSowToHarvest:null, tender:true, words:['aubergine','eggplant'], varieties:['Black Beauty','Moneymaker']},
+  {name:'Courgette', family:'Cucurbits', sowToPotOn:21, transplantToHarvest:50, directSowToHarvest:55, tender:true, words:['courgette','zucchini'], varieties:['Black Beauty','Defender']},
+  {name:'Cucumber', family:'Cucurbits', sowToPotOn:21, transplantToHarvest:55, directSowToHarvest:60, tender:true, words:['cucumber'], varieties:['Marketmore','Telegraph']},
+  {name:'Pumpkin / Squash', family:'Cucurbits', sowToPotOn:21, transplantToHarvest:100, directSowToHarvest:105, tender:true, words:['pumpkin','squash'], varieties:['Butternut','Crown Prince']},
+  {name:'Melon', family:'Cucurbits', sowToPotOn:21, transplantToHarvest:90, directSowToHarvest:null, tender:true, words:['melon','cantaloupe'], varieties:[]},
+  {name:'Sweetcorn', family:'Other', sowToPotOn:21, transplantToHarvest:75, directSowToHarvest:80, tender:true, words:['sweetcorn','maize','corn'], varieties:['Swift','Lark']},
+  {name:'Runner Bean', family:'Legumes', sowToPotOn:21, transplantToHarvest:70, directSowToHarvest:75, tender:true, words:['runner bean','runner beans'], varieties:['Scarlet Emperor','Painted Lady']},
+  {name:'French Bean', family:'Legumes', sowToPotOn:21, transplantToHarvest:60, directSowToHarvest:65, tender:true, words:['french bean','bean','beans'], varieties:['Blue Lake']},
+  {name:'Pea', family:'Legumes', sowToPotOn:14, transplantToHarvest:60, directSowToHarvest:65, tender:false, words:['pea','peas','mangetout'], varieties:['Kelvedon Wonder','Hurst Green Shaft']},
+  {name:'Broad Bean', family:'Legumes', sowToPotOn:21, transplantToHarvest:90, directSowToHarvest:100, tender:false, words:['broad bean','broad beans'], varieties:['Aquadulce']},
+  {name:'Cabbage', family:'Brassicas', sowToPotOn:28, transplantToHarvest:80, directSowToHarvest:null, tender:false, words:['cabbage'], varieties:['January King','Red Drumhead','Savoy']},
+  {name:'Broccoli / Calabrese', family:'Brassicas', sowToPotOn:28, transplantToHarvest:65, directSowToHarvest:null, tender:false, words:['broccoli','calabrese'], varieties:[]},
+  {name:'Cauliflower', family:'Brassicas', sowToPotOn:35, transplantToHarvest:85, directSowToHarvest:null, tender:false, words:['cauliflower'], varieties:[]},
+  {name:'Kale', family:'Brassicas', sowToPotOn:28, transplantToHarvest:60, directSowToHarvest:65, tender:false, words:['kale'], varieties:[]},
+  {name:'Brussels Sprout', family:'Brassicas', sowToPotOn:28, transplantToHarvest:150, directSowToHarvest:null, tender:false, words:['brussels sprout','sprouts'], varieties:[]},
+  {name:'Swede', family:'Brassicas', sowToPotOn:null, transplantToHarvest:null, directSowToHarvest:130, tender:false, words:['swede'], varieties:[]},
+  {name:'Turnip', family:'Brassicas', sowToPotOn:null, transplantToHarvest:null, directSowToHarvest:55, tender:false, words:['turnip'], varieties:[]},
+  {name:'Kohlrabi', family:'Brassicas', sowToPotOn:21, transplantToHarvest:60, directSowToHarvest:65, tender:false, words:['kohlrabi'], varieties:[]},
+  {name:'Leek', family:'Alliums', sowToPotOn:70, transplantToHarvest:120, directSowToHarvest:null, tender:false, words:['leek'], varieties:['Musselburgh']},
+  {name:'Onion', family:'Alliums', sowToPotOn:56, transplantToHarvest:110, directSowToHarvest:null, tender:false, words:['onion','shallot'], varieties:['Stuttgarter','Sturon','Red Baron']},
+  {name:'Garlic', family:'Alliums', sowToPotOn:null, transplantToHarvest:null, directSowToHarvest:240, tender:false, words:['garlic'], varieties:['Solent Wight','Germidour']},
+  {name:'Lettuce', family:'Other', sowToPotOn:21, transplantToHarvest:45, directSowToHarvest:50, tender:true, words:['lettuce','salad leaves'], varieties:['Little Gem','Lollo Rosso',"Webbs Wonderful"]},
+  {name:'Beetroot', family:'Roots', sowToPotOn:null, transplantToHarvest:null, directSowToHarvest:60, tender:true, words:['beetroot','beet'], varieties:['Boltardy','Chioggia']},
+  {name:'Carrot', family:'Roots', sowToPotOn:null, transplantToHarvest:null, directSowToHarvest:75, tender:false, words:['carrot'], varieties:['Nantes','Chantenay','Autumn King']},
+  {name:'Parsnip', family:'Roots', sowToPotOn:null, transplantToHarvest:null, directSowToHarvest:130, tender:false, words:['parsnip'], varieties:['Tender and True']},
+  {name:'Potato', family:'Roots', sowToPotOn:null, transplantToHarvest:110, directSowToHarvest:null, tender:true, words:['potato','maris piper','king edward','charlotte','desiree','rooster','jersey royal'], varieties:['Maris Piper','King Edward','Charlotte','Desiree','Rooster','Jersey Royal','Vivaldi','Pink Fir Apple']},
+  {name:'Spinach', family:'Other', sowToPotOn:null, transplantToHarvest:null, directSowToHarvest:40, tender:false, words:['spinach'], varieties:[]},
+  {name:'Chard', family:'Other', sowToPotOn:21, transplantToHarvest:55, directSowToHarvest:60, tender:false, words:['chard'], varieties:[]},
+  {name:'Radish', family:'Roots', sowToPotOn:null, transplantToHarvest:null, directSowToHarvest:28, tender:false, words:['radish'], varieties:[]},
+  {name:'Strawberry', family:'Other', sowToPotOn:null, transplantToHarvest:60, directSowToHarvest:null, tender:true, words:['strawberry','strawberries'], varieties:['Cambridge Favourite','Elsanta']},
+  {name:'Rhubarb', family:'Other', sowToPotOn:null, transplantToHarvest:365, directSowToHarvest:null, tender:false, words:['rhubarb'], varieties:[]},
+  {name:'Herbs', family:'Other', sowToPotOn:21, transplantToHarvest:40, directSowToHarvest:45, tender:true, words:['basil','parsley','coriander','thyme','mint','chive','rosemary','herb'], varieties:[]},
+  {name:'Celery', family:'Other', sowToPotOn:70, transplantToHarvest:120, directSowToHarvest:null, tender:true, words:['celery'], varieties:[]},
+  {name:'Celeriac', family:'Other', sowToPotOn:70, transplantToHarvest:150, directSowToHarvest:null, tender:true, words:['celeriac'], varieties:[]},
+  {name:'Sweet Potato', family:'Other', sowToPotOn:null, transplantToHarvest:110, directSowToHarvest:null, tender:true, words:['sweet potato','sweetpotato'], varieties:[]},
+  {name:'Asparagus', family:'Other', sowToPotOn:null, transplantToHarvest:365, directSowToHarvest:null, tender:false, words:['asparagus'], varieties:[]},
+  {name:'Globe Artichoke', family:'Other', sowToPotOn:null, transplantToHarvest:365, directSowToHarvest:null, tender:false, words:['globe artichoke','artichoke'], varieties:[]},
+  {name:'Raspberry', family:'Other', sowToPotOn:null, transplantToHarvest:365, directSowToHarvest:null, tender:false, words:['raspberry','raspberries'], varieties:['Glen Ample','Autumn Bliss']},
+  {name:'Blackberry', family:'Other', sowToPotOn:null, transplantToHarvest:365, directSowToHarvest:null, tender:false, words:['blackberry','blackberries'], varieties:[]},
+  {name:'Blueberry', family:'Other', sowToPotOn:null, transplantToHarvest:365, directSowToHarvest:null, tender:false, words:['blueberry','blueberries'], varieties:[]},
+  {name:'Gooseberry', family:'Other', sowToPotOn:null, transplantToHarvest:365, directSowToHarvest:null, tender:false, words:['gooseberry','gooseberries'], varieties:['Invicta']},
+  {name:'Blackcurrant', family:'Other', sowToPotOn:null, transplantToHarvest:365, directSowToHarvest:null, tender:false, words:['blackcurrant','black currant','redcurrant','red currant'], varieties:['Ben Sarek']},
+  {name:'Apple', family:'Other', sowToPotOn:null, transplantToHarvest:null, directSowToHarvest:null, tender:false, words:['apple'], varieties:['Bramley',"Cox's Orange Pippin",'Gala','Braeburn']},
+  {name:'Pear', family:'Other', sowToPotOn:null, transplantToHarvest:null, directSowToHarvest:null, tender:false, words:['pear'], varieties:['Conference','Comice']},
+  {name:'Plum', family:'Other', sowToPotOn:null, transplantToHarvest:null, directSowToHarvest:null, tender:false, words:['plum','damson','gage'], varieties:['Victoria']},
+  {name:'Cherry', family:'Other', sowToPotOn:null, transplantToHarvest:null, directSowToHarvest:null, tender:false, words:['cherry'], varieties:[]},
+  {name:'Fig', family:'Other', sowToPotOn:null, transplantToHarvest:null, directSowToHarvest:null, tender:true, words:['fig']},
+];
+function levenshtein(a,b){
+  const m=a.length,n=b.length; if(!m) return n; if(!n) return m;
+  let prev = Array(n+1).fill(0).map((_,i)=>i);
+  for(let i=1;i<=m;i++){
+    const cur=[i];
+    for(let j=1;j<=n;j++) cur[j] = a[i-1]===b[j-1] ? prev[j-1] : 1+Math.min(prev[j-1],prev[j],cur[j-1]);
+    prev=cur;
+  }
+  return prev[n];
+}
+function wordCloseness(word, token){
+  if(token.includes(word)) return word.length + 0.5;
+  const maxDist = word.length<=4 ? 1 : (word.length<=7 ? 2 : 3);
+  const d = levenshtein(word, token);
+  return d<=maxDist ? word.length - d*0.5 : 0;
+}
+const CROP_ISSUES = {
+  'Potato': ['Blight','Slugs','Scab','Wireworm'],
+  'Tomato': ['Blight','Blossom End Rot','Whitefly','Aphids'],
+  'Chilli / Pepper': ['Aphids','Whitefly','Blossom End Rot'],
+  'Aubergine': ['Whitefly','Aphids','Red Spider Mite'],
+  'Cabbage': ['Cabbage White Caterpillar','Clubroot','Aphids','Flea Beetle'],
+  'Broccoli / Calabrese': ['Cabbage White Caterpillar','Clubroot','Aphids','Flea Beetle'],
+  'Cauliflower': ['Cabbage White Caterpillar','Clubroot','Aphids','Flea Beetle'],
+  'Kale': ['Cabbage White Caterpillar','Aphids','Flea Beetle'],
+  'Brussels Sprout': ['Cabbage White Caterpillar','Clubroot','Aphids'],
+  'Swede': ['Clubroot','Flea Beetle'],
+  'Turnip': ['Flea Beetle','Clubroot'],
+  'Kohlrabi': ['Flea Beetle','Clubroot'],
+  'Carrot': ['Carrot Fly','Aphids'],
+  'Parsnip': ['Carrot Fly','Canker'],
+  'Onion': ['Onion Fly','White Rot'],
+  'Garlic': ['White Rot','Rust'],
+  'Leek': ['Leek Moth','Rust','Onion Fly'],
+  'Pea': ['Pea Moth','Powdery Mildew','Aphids'],
+  'Broad Bean': ['Blackfly (Aphids)','Chocolate Spot'],
+  'Runner Bean': ['Blackfly (Aphids)','Slugs'],
+  'French Bean': ['Blackfly (Aphids)','Slugs'],
+  'Courgette': ['Powdery Mildew','Slugs','Aphids'],
+  'Cucumber': ['Powdery Mildew','Whitefly','Aphids'],
+  'Pumpkin / Squash': ['Powdery Mildew','Slugs'],
+  'Melon': ['Powdery Mildew','Whitefly'],
+  'Sweetcorn': ['Slugs','Frit Fly'],
+  'Lettuce': ['Slugs','Aphids','Downy Mildew'],
+  'Beetroot': ['Leaf Miner','Aphids'],
+  'Spinach': ['Downy Mildew','Aphids','Leaf Miner'],
+  'Chard': ['Downy Mildew','Aphids','Leaf Miner'],
+  'Radish': ['Flea Beetle','Slugs'],
+  'Celery': ['Celery Fly','Slugs'],
+  'Celeriac': ['Celery Fly','Slugs'],
+  'Sweet Potato': ['Aphids','Wireworm'],
+  'Asparagus': ['Asparagus Beetle'],
+  'Globe Artichoke': ['Aphids','Slugs'],
+  'Strawberry': ['Grey Mould (Botrytis)','Slugs','Vine Weevil'],
+  'Raspberry': ['Raspberry Beetle','Cane Blight'],
+  'Blackberry': ['Aphids'],
+  'Blueberry': ['Aphids'],
+  'Gooseberry': ['Gooseberry Sawfly','American Gooseberry Mildew'],
+  'Blackcurrant': ['Big Bud Mite','Aphids'],
+  'Rhubarb': ['Crown Rot'],
+  'Herbs': ['Aphids','Powdery Mildew'],
+  'Apple': ['Scab','Codling Moth','Canker'],
+  'Pear': ['Scab','Pear Rust'],
+  'Plum': ['Brown Rot','Aphids'],
+  'Cherry': ['Bacterial Canker','Brown Rot'],
+  'Fig': ['Rust','Scale Insects'],
+};
+function commonIssuesFor(crop){
+  if(!crop) return [];
+  const m = matchCrop(crop.name);
+  return CROP_ISSUES[m ? m.name : crop.name] || [];
+}
+function matchCrop(typed){
+  const tokens = typed.toLowerCase().split(/[\s,\/-]+/).filter(Boolean);
+  const lower = typed.toLowerCase();
+  let best=null, bestScore=0;
+  for(const k of KNOWN_CROPS){
+    for(const w of k.words){
+      let score = lower.includes(w) ? w.length + 0.5 : 0;
+      for(const t of tokens) score = Math.max(score, wordCloseness(w, t));
+      if(score>bestScore){ bestScore=score; best=k; }
+    }
+  }
+  return bestScore>0 ? best : null;
+}
+function findExistingCrop(typed){
+  const lower = typed.toLowerCase();
+  let exact = STATE.crops.find(c=>c.name.toLowerCase()===lower);
+  if(exact) return exact;
+  let best=null, bestScore=-1;
+  for(const c of STATE.crops){
+    const cl = c.name.toLowerCase();
+    const maxDist = cl.length<=4 ? 1 : (cl.length<=8 ? 2 : 3);
+    const d = levenshtein(cl, lower);
+    if(d<=maxDist && (cl.length-d)>bestScore){ bestScore=cl.length-d; best=c; }
+  }
+  return best;
+}
+async function findOrCreateCrop(typedRaw){
+  const typed = (typedRaw||'').trim();
+  if(!typed) return null;
+  const existing = findExistingCrop(typed);
+  if(existing) return existing;
+  const m = matchCrop(typed);
+  const rec = {id:uid(), name:typed, family:m?m.family:'Other', sowToPotOn:m?m.sowToPotOn:null, transplantToHarvest:m?m.transplantToHarvest:null, directSowToHarvest:m?m.directSowToHarvest:null, tender: m?m.tender:null, addedBy:who(), color:colorForCropName(typed)};
+  await put('crops', rec); STATE.crops.push(rec); return rec;
+}
+function learnTiming(crop, field, actualDays){
+  if(!crop || !field || !actualDays || actualDays<=0 || actualDays>500) return;
+  crop[field] = crop[field] ? Math.round((crop[field] + actualDays) / 2) : actualDays;
+}
+function wireCropAutocomplete(inputEl, boxEl){
+  if(!inputEl || !boxEl) return;
+  const update = ()=>{
+    const val = inputEl.value.trim().toLowerCase();
+    if(val.length<2){ boxEl.innerHTML=''; return; }
+    const matches = [];
+    for(const k of KNOWN_CROPS){
+      for(const v of (k.varieties||[])){
+        const full = `${k.name} ${v}`;
+        if(full.toLowerCase().includes(val)) matches.push(full);
+      }
+    }
+    for(const k of KNOWN_CROPS){ if(k.name.toLowerCase().includes(val) && !matches.some(m=>m.toLowerCase()===k.name.toLowerCase())) matches.push(k.name); }
+    for(const c of STATE.crops){ if(c.name.toLowerCase().includes(val) && !matches.includes(c.name)) matches.push(c.name); }
+    const uniq = [...new Set(matches)].slice(0,8);
+    boxEl.innerHTML = uniq.map(m=>`<button type="button" class="btn small secondary" style="margin:3px 4px 0 0;">${escapeHTML(m)}</button>`).join('');
+    boxEl.querySelectorAll('button').forEach(b=>b.addEventListener('click', ()=>{ inputEl.value=b.textContent; boxEl.innerHTML=''; inputEl.focus(); }));
+  };
+  inputEl.addEventListener('input', update);
+}
+async function lookupCropOnline(query, targetElId){
+  const el = document.getElementById(targetElId);
+  if(!el) return;
+  if(!query){ el.innerHTML=''; return; }
+  if(!navigator.onLine){ el.innerHTML = '<p class="muted">Offline right now — try again with a signal.</p>'; return; }
+  el.innerHTML = '<p class="muted">Looking it up...</p>';
+  try{
+    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`);
+    if(!res.ok){ el.innerHTML = '<p class="muted">Nothing found online for that.</p>'; return; }
+    const data = await res.json();
+    const extract = (data.extract||'').slice(0,220);
+    el.innerHTML = `<div class="muted lookup-box" style="font-size:13px; background:var(--paper); padding:8px 10px; border-radius:6px;"><strong>${escapeHTML(data.title||query)}:</strong> ${escapeHTML(extract)}${extract.length>=220?'...':''}</div>`;
+  }catch(e){ el.innerHTML = '<p class="muted">Could not reach the internet for that.</p>'; }
+}
+
+const ICON_GREENHOUSE = '<svg viewBox="0 0 24 24" width="20" height="20"><polyline points="2,9 12,3 22,9" fill="none" stroke="#435760" stroke-width="1.6"/><rect x="3" y="9" width="18" height="12" fill="none" stroke="#435760" stroke-width="1.6"/><line x1="12" y1="3" x2="12" y2="21" stroke="#435760" stroke-width="1"/><line x1="3" y1="15" x2="21" y2="15" stroke="#435760" stroke-width="1"/></svg>';
+const ICON_POLYTUNNEL = '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M2 20 Q2 5 12 5 Q22 5 22 20" fill="none" stroke="#435760" stroke-width="1.6"/><line x1="2" y1="20" x2="22" y2="20" stroke="#435760" stroke-width="1.6"/><path d="M6 20 Q6 9.5 12 9.5 Q18 9.5 18 20" fill="none" stroke="#435760" stroke-width="1.2"/><path d="M9 20 Q9 13 12 12.8 Q15 13 15 20" fill="none" stroke="#435760" stroke-width="1"/></svg>';
+const ICON_RAISEDBED = '<svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="4" width="20" height="16" rx="1" fill="none" stroke="#8B5A2B" stroke-width="1.6"/><line x1="2" y1="9" x2="22" y2="9" stroke="#8B5A2B" stroke-width="1"/><line x1="2" y1="14" x2="22" y2="14" stroke="#8B5A2B" stroke-width="1"/><line x1="2" y1="19" x2="22" y2="19" stroke="#8B5A2B" stroke-width="1"/></svg>';
+const FEATURE_TYPES = {
+  bed:{label:'Bed',icon:'🌱'}, raisedbed:{label:'Raised bed',icon:ICON_RAISEDBED}, greenhouse:{label:'Greenhouse',icon:ICON_GREENHOUSE}, polytunnel:{label:'Polytunnel',icon:ICON_POLYTUNNEL},
+  tree:{label:'Fruit tree',icon:'🌳'}, basket:{label:'Basket',icon:'🧺'}, shed:{label:'Shed',icon:'🛖'},
+  gate:{label:'Gate',icon:'🚪'}, path:{label:'Path',icon:'▫️'}, fence:{label:'Fence',icon:'🚧'}, water:{label:'Water butt',icon:'💧'}, compost:{label:'Compost',icon:'♻️'},
+};
+const DEFAULT_SIZE = { bed:[2,1], raisedbed:[1.2,1.2], greenhouse:[2.5,2], polytunnel:[4,2], tree:[0.6,0.6], basket:[0.5,0.5], shed:[1.5,1.5], gate:[0.9,0.15], path:[2,0.6], fence:[2,0.15], water:[0.5,0.5], compost:[1,0.8] };
+const BED_COLORS = ['#7E9A6D','#B9852B','#435760','#A23B2D','#6B4E71','#2E7D75','#C77D2E','#B15C6B'];
+const GROUND_COLORS = ['#DFDBC2','#D8DFC4','#D9D2C0','#CFCFC9','#E3D9C6'];
+const CROP_COLORS = ['#E07A5F','#3D8361','#F2CC8F','#457B9D','#B5838D','#E9C46A','#8D6A9F','#C1666B','#2A9D8F','#D4A373'];
+function colorForCropName(name){
+  let hash = 0;
+  for(let i=0;i<name.length;i++) hash = (hash*31 + name.charCodeAt(i)) >>> 0;
+  return CROP_COLORS[hash % CROP_COLORS.length];
+}
+function cropColor(crop){ return (crop && crop.color) || (crop ? colorForCropName(crop.name) : '#8a8a7a'); }
+
+/* ======================= STATE ======================= */
+let STATE = { crops:[], beds:[], features:[], trays:[], tasks:[], harvests:[], settings:{} };
+let LAST_WEATHER = null;
+let placingMode = null;
+let outlineEditing = false;
+let activeTier = {}; // featId -> tierId, transient (not persisted)
+let autoJumpedTiers = new Set(); // featIds that have already had their first-open smart tier-jump applied this session
+
+function defaultShape(w,h){ return [{x:0,y:0},{x:w,y:0},{x:w,y:h},{x:0,y:h}]; }
+function scaleShapeToSize(pts, newW, newH){
+  const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
+  const minX=Math.min(...xs), minY=Math.min(...ys);
+  const oldW=Math.max(...xs)-minX, oldH=Math.max(...ys)-minY;
+  const sx = oldW>0 ? newW/oldW : 1, sy = oldH>0 ? newH/oldH : 1;
+  return pts.map(p=>({x:snapMap(minX+(p.x-minX)*sx), y:snapMap(minY+(p.y-minY)*sy)}));
+}
+function scaleLocalShape(pts, oldW, oldH, newW, newH){
+  const sx = oldW>0 ? newW/oldW : 1, sy = oldH>0 ? newH/oldH : 1;
+  return pts.map(p=>({x:snapFine(p.x*sx), y:snapFine(p.y*sy)}));
+}
+function who(){ return STATE.settings.gardenerName || undefined; }
+
+async function loadAll(){
+  STATE.crops = await getAll('crops');
+  STATE.beds = await getAll('beds');
+  STATE.features = await getAll('features');
+  STATE.trays = await getAll('trays');
+  STATE.tasks = await getAll('tasks');
+  STATE.harvests = await getAll('harvests');
+  STATE.settings.plotName = await getMeta('plotName','My Plot');
+  STATE.settings.plotWidthM = await getMeta('plotWidthM', 10);
+  STATE.settings.plotDepthM = await getMeta('plotDepthM', 6);
+  STATE.settings.plotShape = await getMeta('plotShape', null);
+  STATE.settings.groundColor = await getMeta('groundColor', GROUND_COLORS[0]);
+  STATE.settings.lat = await getMeta('lat', null);
+  STATE.settings.lon = await getMeta('lon', null);
+  STATE.settings.postcode = await getMeta('postcode','');
+  STATE.settings.thFrost = await getMeta('thFrost', 0);
+  STATE.settings.thRain = await getMeta('thRain', 20);
+  STATE.settings.thWind = await getMeta('thWind', 50);
+  STATE.settings.seenAlerts = await getMeta('seenAlerts', []);
+  STATE.settings.notifOn = await getMeta('notifOn', false);
+  STATE.settings.notifLevel = await getMeta('notifLevel', 'advice');
+  STATE.settings.lastDigestDate = await getMeta('lastDigestDate', '');
+  STATE.settings.syncUrl = await getMeta('syncUrl', '');
+  STATE.settings.syncKey = await getMeta('syncKey', '');
+  STATE.settings.syncCode = await getMeta('syncCode', '');
+  STATE.settings.gardenerName = await getMeta('gardenerName', '');
+  STATE.settings.customContainerSizes = await getMeta('customContainerSizes', []);
+  STATE.settings.treatmentReasons = await getMeta('treatmentReasons', []);
+}
+function cropById(id){ return STATE.crops.find(c=>c.id===id); }
+function bedById(id){ return STATE.beds.find(b=>b.id===id); }
+function featureById(id){ return STATE.features.find(f=>f.id===id); }
+
+/* ======================= NAV / MODAL / TOAST ======================= */
+function goToTab(view){
+  document.querySelectorAll('nav.tabs button[data-view]').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active', v.id==='view-'+view));
+}
+function greenhouseStructures(){
+  return STATE.features.filter(f=>f.type==='greenhouse'||f.type==='polytunnel');
+}
+function openGreenhouseFromTab(){
+  const structs = greenhouseStructures();
+  if(structs.length===1){ openStructureDetail(structs[0]); return; }
+  if(structs.length===0) return;
+  const opts = structs.map(f=>`<button class="type-opt" data-feat="${f.id}"><span class="icon">${FEATURE_TYPES[f.type].icon}</span>${escapeHTML(f.label||FEATURE_TYPES[f.type].label)}</button>`).join('');
+  openModal(`<h3>Which one?</h3><div class="type-grid">${opts}</div>`);
+  modalContent.querySelectorAll('[data-feat]').forEach(b=>b.addEventListener('click', ()=> openStructureDetail(featureById(b.dataset.feat))));
+}
+document.getElementById('tabs').addEventListener('click',(e)=>{
+  const btn = e.target.closest('button[data-view]'); if(!btn) return;
+  if(outlineEditing && btn.dataset.view!=='map'){ outlineEditing=false; toast('Outline saved'); }
+  goToTab(btn.dataset.view);
+  renderAll();
+  if(btn.dataset.view==='greenhouse') openGreenhouseFromTab();
+});
+const backdrop=document.getElementById('modalBackdrop'), modalContent=document.getElementById('modalContent');
+let scrollY_before_modal = 0;
+const ICON_UNDO_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7 4 12l5 5"/><path d="M4 12h11a5 5 0 0 1 0 10h-1"/></svg>';
+const ICON_REDO_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l5 5-5 5"/><path d="M20 12H9a5 5 0 0 0 0 10h1"/></svg>';
+function openModal(html, fullscreen){
+  const wasClosed = !backdrop.classList.contains('open');
+  modalContent.innerHTML = `<div class="modal-topbar">
+    <button class="icon-btn" id="mUndoBtn" title="Undo" ${undoStack.length===0?'disabled':''}>${ICON_UNDO_SVG}</button>
+    <button class="icon-btn" id="mRedoBtn" title="Redo" ${redoStack.length===0?'disabled':''}>${ICON_REDO_SVG}</button>
+    <button class="btn small secondary" id="mCloseBtn">✕ Close</button><button class="btn small" id="mHomeBtn">🏠 Home</button></div>` + html;
+  modalContent.classList.toggle('fullscreen', !!fullscreen);
+  backdrop.classList.add('open');
+  if(wasClosed){
+    scrollY_before_modal = window.scrollY;
+    document.body.style.position='fixed'; document.body.style.top=(-scrollY_before_modal)+'px'; document.body.style.left='0'; document.body.style.right='0';
+  }
+  document.getElementById('mCloseBtn').addEventListener('click', closeModal);
+  document.getElementById('mHomeBtn').addEventListener('click', goHome);
+  document.getElementById('mUndoBtn').addEventListener('click', async ()=>{ await performUndo(); closeModal(); });
+  document.getElementById('mRedoBtn').addEventListener('click', async ()=>{ await performRedo(); closeModal(); });
+}
+function closeModal(){
+  backdrop.classList.remove('open'); modalContent.innerHTML='';
+  document.body.style.position=''; document.body.style.top=''; document.body.style.left=''; document.body.style.right='';
+  window.scrollTo(0, scrollY_before_modal);
+  if(pendingConfirmResolve){ const r=pendingConfirmResolve; pendingConfirmResolve=null; r(false); }
+}
+function goHome(){ closeModal(); placingMode=null; outlineEditing=false; goToTab('map'); renderAll(); }
+backdrop.addEventListener('click',(e)=>{ if(e.target===backdrop) closeModal(); });
+function toast(msg){
+  let el = document.getElementById('toastEl');
+  if(!el){ el=document.createElement('div'); el.id='toastEl'; el.className='toast'; document.body.appendChild(el); }
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(()=>el.classList.remove('show'), 2200);
+}
+let pendingConfirmResolve = null;
+function confirmDialog(msg, onCancelReturn){
+  return new Promise(resolve=>{
+    pendingConfirmResolve = resolve;
+    openModal(`<h3>Are you sure?</h3><p>${escapeHTML(msg)}</p><div class="btn-row"><button class="btn danger" id="cdYes">Yes, remove it</button><button class="btn secondary" id="cdNo">Cancel</button></div>`);
+    document.getElementById('cdYes').addEventListener('click', ()=>{ pendingConfirmResolve=null; closeModal(); resolve(true); });
+    document.getElementById('cdNo').addEventListener('click', ()=>{ pendingConfirmResolve=null; if(onCancelReturn) onCancelReturn(); else closeModal(); resolve(false); });
+  });
+}
+
+/* requireUnlock is a passthrough — the PIN-lock feature was removed, but call sites throughout the app still wrap actions in it, so this stays as a no-op wrapper rather than touching every one individually */
+function requireUnlock(action){ action(); }
+
+/* Prevent touchmove from bubbling into a page-scroll on anything we're dragging */
+function blockTouchScroll(el){
+  el.addEventListener('touchmove', (e)=>{ e.preventDefault(); }, {passive:false});
+}
+
+const plotNameEl = document.getElementById('plotName');
+plotNameEl.addEventListener('blur', async ()=>{
+  const val = plotNameEl.textContent.trim() || 'My Plot';
+  plotNameEl.textContent = val; await setMeta('plotName', val); document.title = val;
+});
+plotNameEl.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); plotNameEl.blur(); } });
+
+/* ======================= UNDO / REDO ======================= */
+let undoStack=[], redoStack=[], lastSnapshot=null, restoring=false;
+function snapshotState(){
+  return JSON.parse(JSON.stringify({crops:STATE.crops, beds:STATE.beds, features:STATE.features, trays:STATE.trays, tasks:STATE.tasks, harvests:STATE.harvests}));
+}
+async function restoreSnapshot(snap){
+  restoring = true;
+  try{
+    for(const store of ['crops','beds','features','trays','tasks','harvests']){
+      await clearStore(store);
+      for(const item of (snap[store]||[])) await put(store, item);
+    }
+    await loadAll(); renderAll();
+    lastSnapshot = snapshotState();
+  } finally { restoring = false; }
+  if(supa) schedulePush();
+}
+async function performUndo(){
+  if(undoStack.length===0){ toast('Nothing to undo'); return; }
+  redoStack.push(snapshotState());
+  const prev = undoStack.pop();
+  await restoreSnapshot(prev);
+  toast('Undone');
+}
+async function performRedo(){
+  if(redoStack.length===0){ toast('Nothing to redo'); return; }
+  undoStack.push(snapshotState());
+  const next = redoStack.pop();
+  await restoreSnapshot(next);
+  toast('Redone');
+}
+document.getElementById('btnUndo').addEventListener('click', performUndo);
+document.getElementById('btnRedo').addEventListener('click', performRedo);
+
+/* ======================= TASKS ======================= */
+function expandTaskOccurrences(daysAhead){
+  const out=[], today=todayISO(), horizon=addDays(today,daysAhead);
+  for(const t of STATE.tasks){
+    if(!t.recurrence || t.recurrence==='none'){ out.push({task:t, dueDate:t.dueDate, occKey:t.dueDate+'|'+t.id, done:!!t.done}); continue; }
+    const stepDays = {daily:1,every3:3,weekly:7,fortnightly:14,monthly:30}[t.recurrence]||7;
+    let cursor=t.dueDate, guard=0;
+    while(cursor<=horizon && guard<400){
+      if(cursor>=addDays(today,-2)){ const dd=t.doneDates||[]; out.push({task:t, dueDate:cursor, occKey:t.id+'|'+cursor, done:dd.includes(cursor)}); }
+      cursor=addDays(cursor,stepDays); guard++;
+    }
+  }
+  return out.sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+}
+async function toggleOccurrence(occKey){
+  const occ = expandTaskOccurrences(400).find(o=>o.occKey===occKey); if(!occ) return;
+  const t = occ.task;
+  if(t.recurrence && t.recurrence!=='none'){ t.doneDates=t.doneDates||[]; const i=t.doneDates.indexOf(occ.dueDate); if(i>=0) t.doneDates.splice(i,1); else t.doneDates.push(occ.dueDate); }
+  else { t.done = !t.done; t.completedBy = t.done ? who() : undefined; }
+  await put('tasks',t); await afterChange();
+}
+async function navigateToTask(taskId){
+  const t = STATE.tasks.find(tt=>tt.id===taskId); if(!t) return;
+  if(t.bedId && bedById(t.bedId)){ openBedDetail(t.bedId, t.linkedPlantingId); return; }
+  if(t.linkedTrayId){
+    const tray = STATE.trays.find(tt=>tt.id===t.linkedTrayId);
+    if(tray){
+      const typeGuess = tray.location==='Polytunnel' ? 'polytunnel' : (tray.location==='Greenhouse' ? 'greenhouse' : null);
+      const feat = typeGuess ? STATE.features.find(f=>f.type===typeGuess) : null;
+      if(feat){ openStructureDetail(feat, tray.id); return; }
+    }
+  }
+  toast('Nothing to jump to for this one');
+}
+function taskRowHTML(occ){
+  const overdue = !occ.done && occ.dueDate < todayISO();
+  return `<li class="${occ.done?'done':''}"><input type="checkbox" ${occ.done?'checked':''} data-toggle="${occ.occKey}">
+    <span class="ttitle" data-navtask="${occ.task.id}">${escapeHTML(occ.task.title)}</span>
+    <span class="tdate ${overdue?'overdue':''}">${dayLabel(occ.dueDate)}</span></li>`;
+}
+function wireTaskToggles(container){
+  container.querySelectorAll('[data-toggle]').forEach(cb=>cb.addEventListener('change',()=>toggleOccurrence(cb.dataset.toggle)));
+  container.querySelectorAll('[data-navtask]').forEach(el=>el.addEventListener('click', ()=>navigateToTask(el.dataset.navtask)));
+}
+function renderJobsView(){
+  const upcoming=document.getElementById('upcomingList');
+  const occs = expandTaskOccurrences(21).filter(o=>!o.done);
+  upcoming.innerHTML = occs.length ? occs.map(taskRowHTML).join('') : '<p class="empty-note">Nothing scheduled.</p>';
+  wireTaskToggles(upcoming);
+  const doneList=document.getElementById('doneList');
+  const doneOccs = expandTaskOccurrences(21).filter(o=>o.done);
+  doneList.innerHTML = doneOccs.length ? doneOccs.map(taskRowHTML).join('') : '<p class="empty-note">Nothing finished yet.</p>';
+  wireTaskToggles(doneList);
+}
+document.getElementById('btnAddTask').addEventListener('click', async ()=>{
+  const title=document.getElementById('taskTitle').value.trim();
+  const due=document.getElementById('taskDue').value || todayISO();
+  const recur=document.getElementById('taskRecur').value;
+  if(!title) return;
+  await put('tasks',{id:uid(), title, dueDate:due, recurrence:recur, done:false, doneDates:[], addedBy:who()});
+  document.getElementById('taskTitle').value=''; await afterChange();
+});
+
+/* ======================= WEATHER ======================= */
+async function fetchWeather(showErrors){
+  if(STATE.settings.lat==null || STATE.settings.lon==null){ document.getElementById('alertsBox').innerHTML=''; return; }
+  try{
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${STATE.settings.lat}&longitude=${STATE.settings.lon}&daily=temperature_2m_min,temperature_2m_max,precipitation_sum,windspeed_10m_max,weathercode&timezone=auto&forecast_days=7`;
+    const res = await fetch(url);
+    if(!res.ok){ if(showErrors) toast(`Weather service error (${res.status})`); return; }
+    const data = await res.json();
+    LAST_WEATHER = data; processWeather(data);
+  }catch(err){ if(showErrors) toast('Could not reach the weather service — check your connection'); }
+}
+function wIcon(code){
+  if([95,96,99].includes(code)) return '⛈️';
+  if([71,73,75,77,85,86].includes(code)) return '❄️';
+  if([61,63,65,80,81,82,51,53,55].includes(code)) return '🌧️';
+  if([45,48].includes(code)) return '🌫️';
+  if([1,2,3].includes(code)) return '⛅';
+  if(code===0) return '☀️';
+  return '🌤️';
+}
+function getTodayWeatherSnapshot(){
+  if(!LAST_WEATHER) return null;
+  const idx = LAST_WEATHER.daily.time.indexOf(todayISO()); if(idx<0) return null;
+  return { tempMax:Math.round(LAST_WEATHER.daily.temperature_2m_max[idx]), tempMin:Math.round(LAST_WEATHER.daily.temperature_2m_min[idx]),
+    rain:Math.round(LAST_WEATHER.daily.precipitation_sum[idx]), icon:wIcon(LAST_WEATHER.daily.weathercode[idx]) };
+}
+async function fetchGrowingWeatherSummary(startDate, endDate){
+  if(STATE.settings.lat==null || STATE.settings.lon==null) return null;
+  if(!navigator.onLine || !startDate || !endDate || endDate<startDate) return null;
+  try{
+    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${STATE.settings.lat}&longitude=${STATE.settings.lon}&start_date=${startDate}&end_date=${endDate}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=auto`;
+    const res = await fetch(url);
+    if(!res.ok) return null;
+    const data = await res.json();
+    const tmax=data.daily.temperature_2m_max, tmin=data.daily.temperature_2m_min, rain=data.daily.precipitation_sum;
+    const n = tmax.length; if(!n) return null;
+    const meanMax = tmax.reduce((a,b)=>a+b,0)/n, meanMin = tmin.reduce((a,b)=>a+b,0)/n, totalRain = rain.reduce((a,b)=>a+b,0);
+    return { meanTempMax:Math.round(meanMax*10)/10, meanTempMin:Math.round(meanMin*10)/10, totalRain:Math.round(totalRain), days:n };
+  }catch(e){ return null; }
+}
+function exposedTenderCrops(){
+  const items = [];
+  for(const bed of STATE.beds){
+    for(const p of (bed.plantings||[]).filter(p=>p.active)){
+      const c = cropById(p.cropId);
+      if(c && c.tender) items.push(`${c.name} (${bed.name})`);
+    }
+  }
+  return [...new Set(items)];
+}
+async function processWeather(data){
+  const days=data.daily.time, tmin=data.daily.temperature_2m_min, tmax=data.daily.temperature_2m_max;
+  const rain=data.daily.precipitation_sum, wind=data.daily.windspeed_10m_max, codes=data.daily.weathercode;
+  const thFrost=STATE.settings.thFrost, thRain=STATE.settings.thRain, thWind=STATE.settings.thWind;
+  const level = STATE.settings.notifLevel || 'advice';
+  const wantsTips = level!=='quiet';
+  const alerts=[];
+  for(let i=0;i<days.length;i++){
+    const severe = tmin[i]<=thFrost || rain[i]>=thRain || wind[i]>=thWind || [95,96,99].includes(codes[i]);
+    if(severe){
+      const wk = new Date(days[i]+'T00:00:00').toLocaleDateString('en-GB',{weekday:'long'});
+      let fact, tip, type;
+      if(tmin[i]<=thFrost){
+        type='frost';
+        fact = `❄️ Frost expected ${dayLabel(days[i])==='Today'?'tonight':wk+' night'}.`;
+        const tender = exposedTenderCrops();
+        tip = tender.length ? `Cover or bring in: ${tender.join(', ')}.` : `Worth covering anything tender if you can.`;
+      } else if([95,96,99].includes(codes[i])){ type='storm'; fact=`⛈️ Stormy weather expected ${wk}.`; tip=`Secure canes, cloches and anything loose.`; }
+      else if(rain[i]>=thRain){ type='rain'; fact=`🌧️ Heavy rain expected ${wk}.`; tip=`Check drainage and hold off watering.`; }
+      else { type='wind'; fact=`💨 Strong winds expected ${wk}.`; tip=`Secure canes, cloches and greenhouse vents.`; }
+      const msg = wantsTips ? `${fact} ${tip}` : fact;
+      alerts.push({key:days[i]+type, type, msg});
+    }
+  }
+  if(wantsTips){
+    const soonRain = rain.slice(0,3).reduce((a,b)=>a+b,0);
+    if(soonRain < 2) alerts.push({key:'dry-'+days[0], type:'dry', msg:`🌦️ No rain expected for a few days — worth checking if anything needs a drink.`});
+  }
+  if(!placingMode) document.getElementById('alertsBox').innerHTML = alerts.map(a=>`<div class="alert ${a.type==='frost'?'frost':(a.type==='wind'||a.type==='dry'?'wind':'')}"><span>${a.msg}</span></div>`).join('');
+  const todaySnap = getTodayWeatherSnapshot();
+  document.getElementById('wxIcon').textContent = todaySnap ? `${todaySnap.icon} ${todaySnap.tempMax}\u00B0` : 'Weather';
+
+  if(STATE.settings.notifOn && 'Notification' in window && Notification.permission==='granted'){
+    const seen = STATE.settings.seenAlerts||[];
+    const fresh = alerts.filter(a=>!seen.includes(a.key));
+    for(const a of fresh) new Notification('Your plot', {body:a.msg});
+    if(fresh.length){ const updated = seen.concat(fresh.map(a=>a.key)).slice(-100); STATE.settings.seenAlerts=updated; await setMeta('seenAlerts',updated); }
+    if(level==='chatty' && STATE.settings.lastDigestDate!==todayISO()){
+      const dueToday = expandTaskOccurrences(0).filter(o=>!o.done && o.dueDate===todayISO()).length;
+      if(dueToday>0) new Notification('Your plot', {body:`${dueToday} task${dueToday>1?'s':''} waiting today.`});
+      STATE.settings.lastDigestDate = todayISO(); await setMeta('lastDigestDate', todayISO());
+    }
+  }
+}
+document.getElementById('wxBtn').addEventListener('click', ()=>{
+  if(!LAST_WEATHER){
+    if(STATE.settings.lat==null || STATE.settings.lon==null){
+      openModal(`<h3>Weather</h3><p class="empty-note">Add your postcode in Setup to see the weather.</p>`);
+    } else {
+      openModal(`<h3>Weather</h3><p class="empty-note">Couldn't load the weather yet.</p><button class="btn big" id="mRetryWx">Try again</button>`);
+      document.getElementById('mRetryWx').addEventListener('click', async ()=>{
+        await fetchWeather(true);
+        if(LAST_WEATHER) document.getElementById('wxBtn').click();
+      });
+    }
+    return;
+  }
+  const days=LAST_WEATHER.daily.time, tmin=LAST_WEATHER.daily.temperature_2m_min, tmax=LAST_WEATHER.daily.temperature_2m_max;
+  const rain=LAST_WEATHER.daily.precipitation_sum, codes=LAST_WEATHER.daily.weathercode;
+  let cards='';
+  for(let i=0;i<days.length;i++){
+    cards += `<div class="wcard"><div class="d">${new Date(days[i]+'T00:00:00').toLocaleDateString('en-GB',{weekday:'short'})}</div>
+      <div class="icon">${wIcon(codes[i])}</div><div class="t">${Math.round(tmax[i])}&deg;/${Math.round(tmin[i])}&deg;</div><div class="t muted">${Math.round(rain[i])}mm</div></div>`;
+  }
+  openModal(`<h3>Weather this week</h3><div class="weather-strip">${cards}</div>`);
+});
+window.addEventListener('online', ()=>{ fetchWeather(); toast('Back online'); });
+
+/* ======================= PLACING MODE (tap-to-plant-out, with partial amounts) ======================= */
+function startPlantOutFlow(tray, crop){
+  openModal(`<h3>Planting out ${escapeHTML(crop?crop.name:'this')}</h3>
+    <p class="muted">There are ${tray.quantity||1} in this tray right now.</p>
+    <div class="btn-row">
+      <button class="btn big" id="mAll">Planting out all of it</button>
+      <button class="btn big secondary" id="mSome">Just some of it</button>
+    </div>`);
+  document.getElementById('mAll').addEventListener('click', ()=> enterPlacingMode(tray, crop, {partial:false}));
+  document.getElementById('mSome').addEventListener('click', ()=>{
+    openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>How many are you taking?</h3>
+      <p class="muted">Leave it blank if you'd rather not count exactly — the tray will just stay put with the rest in it.</p>
+      <div class="form-row"><div><label>Number (optional)</label><input type="number" id="mCount" min="1" ${tray.quantity?('max="'+tray.quantity+'"'):''}></div></div>
+      <button class="btn big" id="mNext">Continue</button>`);
+    document.getElementById('mBack').addEventListener('click', ()=> startPlantOutFlow(tray, crop));
+    document.getElementById('mNext').addEventListener('click', ()=>{
+      const val = document.getElementById('mCount').value;
+      const count = val ? Math.max(1, parseInt(val)) : null;
+      enterPlacingMode(tray, crop, {partial:true, count});
+    });
+  });
+}
+function enterPlacingMode(tray, crop, portion){
+  placingMode = {tray, crop, portion: portion||{partial:false}};
+  closeModal();
+  goToTab('map');
+  renderAll();
+}
+function cancelPlacement(){ placingMode=null; renderAll(); }
+async function confirmPlacement(bedId){
+  const bed = bedById(bedId);
+  const {tray, portion} = placingMode;
+  placingMode = null;
+  await doTransplant(tray, bed, todayISO(), '', portion);
+  openBedDetail(bedId);
+}
+function renderPlacingBanner(){
+  const el = document.getElementById('placingBanner');
+  if(!placingMode){ el.innerHTML=''; return; }
+  el.innerHTML = `<div class="alert placing">
+    <span style="flex:1;">🌱 Tap a bed to plant ${escapeHTML(placingMode.crop?placingMode.crop.name:'this')} out.</span>
+    <button class="btn small secondary" id="btnCancelPlacing">Cancel</button></div>`;
+  document.getElementById('btnCancelPlacing').addEventListener('click', cancelPlacement);
+  document.getElementById('alertsBox').innerHTML='';
+}
+
+/* ======================= SHELF (tap only) ======================= */
+function getShelfItems(){
+  const items=[];
+  for(const t of STATE.trays.filter(t=>t.status==='growing')){
+    const c=cropById(t.cropId);
+    const potOnDue = c && c.sowToPotOn ? addDays(t.sownDate, c.sowToPotOn) : null;
+    if(!potOnDue || potOnDue>todayISO()) continue;
+    items.push({kind:'tray', tray:t, crop:c, ready:true, sortDate: potOnDue});
+  }
+  for(const bed of STATE.beds){
+    for(const p of (bed.plantings||[]).filter(p=>p.active)){
+      const c=cropById(p.cropId); const due=p.harvestDue;
+      if(!due || due>todayISO()) continue;
+      items.push({kind:'planting', bed, planting:p, crop:c, ready:true, sortDate: due});
+    }
+  }
+  items.sort((a,b)=> String(a.sortDate).localeCompare(String(b.sortDate)));
+  return items;
+}
+function renderShelf(){
+  const wrap=document.getElementById('shelfStrip');
+  const items=getShelfItems();
+  if(items.length===0){ wrap.innerHTML='<p class="empty-note">Nothing waiting to be moved right now.</p>'; return; }
+  wrap.innerHTML = items.map((it,i)=>{
+    const c=it.crop, label=c?c.name:'Something';
+    const sub = it.kind==='tray' ? it.tray.location : it.bed.name;
+    const col = c ? cropColor(c) : '#8a8a7a';
+    return `<div class="planting-row ${it.ready?'ready':''}" data-idx="${i}" style="cursor:pointer; border-left:4px solid ${col}; padding-left:8px;">
+      <span class="fam-dot" style="background:${col};"></span>
+      <span class="pname">${escapeHTML(label)}</span>
+      <span class="pdate">${escapeHTML(sub)}</span></div>`;
+  }).join('');
+  wrap.querySelectorAll('.planting-row').forEach(rowEl=>{
+    const item = items[parseInt(rowEl.dataset.idx)];
+    rowEl.addEventListener('click', ()=> quickActionForShelfItem(item));
+  });
+}
+function quickActionForShelfItem(item){
+  if(item.kind==='tray') openTrayInfo(item.tray.id);
+  else openPlantingInfo(item.bed.id, item.planting.id);
+}
+
+/* ======================= TRANSPLANT (supports partial amounts, leaves the tray behind) ======================= */
+function nextFreeSlot(w, h, occupied, itemW, itemH){
+  // occupied: array of {px,py,pw,ph} already placed in this w x h area. Finds real free space rather than assuming a vertical stack.
+  const defaultBandH = Math.min(0.6, Math.max(0.25, h/4));
+  const iw = Math.min(itemW||w, w), ih = Math.min(itemH||defaultBandH, h);
+  const n = occupied.length;
+  const rects = occupied.map((o,idx)=>{
+    if(o.px!=null && o.py!=null && o.pw!=null && o.ph!=null) return {px:o.px, py:o.py, pw:o.pw, ph:o.ph};
+    const fallbackBandH = h/Math.max(1,n); // item has no saved position — it renders in a fallback band, so treat that band as taken
+    return {px:0, py:idx*fallbackBandH, pw:w, ph:fallbackBandH};
+  });
+  function overlaps(px,py){
+    for(const r of rects){ if(px < r.px+r.pw-0.001 && px+iw > r.px+0.001 && py < r.py+r.ph-0.001 && py+ih > r.py+0.001) return true; }
+    return false;
+  }
+  const stepX = Math.max(0.1, iw/2), stepY = Math.max(0.1, ih/2);
+  for(let py=0; py+ih<=h+0.001; py+=stepY){
+    for(let px=0; px+iw<=w+0.001; px+=stepX){
+      if(!overlaps(px,py)) return {px:snapFine(px), py:snapFine(py), pw:snapFine(iw), ph:snapFine(ih)};
+    }
+  }
+  let maxY=0; for(const r of rects) maxY=Math.max(maxY, r.py+r.ph); // nothing free — stack below everything as a last resort, even if it runs past the bed's edge
+  return {px:0, py:snapFine(maxY), pw:snapFine(iw), ph:snapFine(ih)};
+}
+async function doTransplant(tray, bed, date, rowLabel, portion){
+  const crop = cropById(tray.cropId);
+  const planting = {id:uid(), cropId:crop.id, date, method:'transplant', active:true, rowLabel:rowLabel||'', by:who(), fromLocation:tray.location};
+  Object.assign(planting, nextFreeSlot(bed.w, bed.h, (bed.plantings||[]).filter(p=>p.active), Math.min(bed.w/2,1.5), Math.min(bed.h/3,0.6)));
+  if(crop.transplantToHarvest){
+    planting.harvestDue = addDays(date, crop.transplantToHarvest);
+    await put('tasks', {id:uid(), title:`Harvest the ${crop.name} from ${bed.name}${rowLabel?' '+rowLabel:''}`, dueDate:planting.harvestDue, recurrence:'none', done:false, doneDates:[], linkedPlantingId:planting.id, bedId:bed.id});
+  }
+  bed.plantings = bed.plantings||[]; bed.plantings.push(planting);
+  await put('beds', bed);
+
+  const full = !portion || !portion.partial;
+  let trayNowEmpty = full;
+  if(!full && portion.count){
+    tray.quantity = Math.max(0, (tray.quantity||1) - portion.count);
+    if(tray.quantity<=0) trayNowEmpty = true;
+  }
+  if(trayNowEmpty){
+    const relatedTask = STATE.tasks.find(t=>t.linkedTrayId===tray.id && !t.done);
+    if(relatedTask){ relatedTask.done=true; await put('tasks', relatedTask); }
+    if(tray.sizeLocked){
+      tray.status='empty'; tray.quantity=0;
+      await put('trays', tray);
+    } else {
+      await del('trays', tray.id);
+    }
+  } else {
+    await put('trays', tray);
+  }
+  await afterChange();
+  toast(`Planted in ${bed.name}`);
+}
+
+/* ======================= PICTURE (drag crops/trays onto a bed/greenhouse tier) ======================= */
+function rectOverlap(l1,t1,w1,h1,r){
+  return l1 < r.left+r.width-0.5 && l1+w1 > r.left+0.5 && t1 < r.top+r.height-0.5 && t1+h1 > r.top+0.5;
+}
+function siblingRectsOf(boxEl){
+  const rects = [];
+  boxEl.parentElement.querySelectorAll('.crop-box').forEach(el=>{
+    if(el===boxEl) return;
+    rects.push({left:parseFloat(el.style.left), top:parseFloat(el.style.top), width:parseFloat(el.style.width), height:parseFloat(el.style.height)});
+  });
+  return rects;
+}
+function wireCropBox(boxEl, item, ppmLocal, boundsWH, onChange, onTap){
+  blockTouchScroll(boxEl);
+  boxEl.addEventListener('pointerdown',(e)=>{
+    if(e.target.closest('.resize-handle-sm')) return;
+    e.preventDefault(); e.stopPropagation();
+    try{ boxEl.setPointerCapture(e.pointerId); }catch(err){}
+    const grid = boxEl.parentElement.querySelector('.picgrid'); if(grid) grid.classList.add('show');
+    const ruler = boxEl.parentElement.querySelector('.pic-ruler'); if(ruler) ruler.classList.add('show');
+    const readout = document.createElement('div');
+    readout.className = 'coord-readout';
+    boxEl.parentElement.appendChild(readout);
+    const siblings = siblingRectsOf(boxEl);
+    const startX=e.clientX, startY=e.clientY;
+    const startLeft=parseFloat(boxEl.style.left), startTop=parseFloat(boxEl.style.top);
+    const w=parseFloat(boxEl.style.width), h=parseFloat(boxEl.style.height);
+    const maxLeft = Math.max(0, boundsWH.w*ppmLocal - w), maxTop = Math.max(0, boundsWH.h*ppmLocal - h);
+    let moved=false;
+    function blocked(l,t){ return siblings.some(r=>rectOverlap(l,t,w,h,r)); }
+    function updateReadout(){
+      const curLeft = parseFloat(boxEl.style.left), curTop = parseFloat(boxEl.style.top);
+      const distFromLeft = curLeft/ppmLocal, distFromBottom = boundsWH.h - (curTop+h)/ppmLocal;
+      readout.textContent = `${distFromLeft.toFixed(1)}m, ${distFromBottom.toFixed(1)}m`;
+      const canvasPxW = boundsWH.w*ppmLocal;
+      readout.style.left = Math.min(Math.max(curLeft+w/2, 40), canvasPxW-40)+'px';
+      if(curTop < 34){ readout.style.top=(curTop+h)+'px'; readout.style.transform='translate(-50%, 40%)'; }
+      else { readout.style.top=curTop+'px'; readout.style.transform='translate(-50%, -140%)'; }
+    }
+    updateReadout();
+    function onMove(ev){
+      ev.preventDefault();
+      const dx=ev.clientX-startX, dy=ev.clientY-startY;
+      if(Math.abs(dx)>5||Math.abs(dy)>5) moved=true;
+      if(!moved) return;
+      const wantLeft = Math.min(Math.max(0, startLeft+dx), maxLeft);
+      const wantTop = Math.min(Math.max(0, startTop+dy), maxTop);
+      const curLeft = parseFloat(boxEl.style.left), curTop = parseFloat(boxEl.style.top);
+      if(!blocked(wantLeft, wantTop)){ boxEl.style.left=wantLeft+'px'; boxEl.style.top=wantTop+'px'; }
+      else if(!blocked(wantLeft, curTop)){ boxEl.style.left=wantLeft+'px'; }
+      else if(!blocked(curLeft, wantTop)){ boxEl.style.top=wantTop+'px'; }
+      updateReadout();
+    }
+    function onUp(){
+      document.removeEventListener('pointermove',onMove); document.removeEventListener('pointerup',onUp);
+      if(grid) grid.classList.remove('show');
+      if(ruler) ruler.classList.remove('show');
+      readout.remove();
+      if(moved){
+        const px=parseFloat(boxEl.style.left)/ppmLocal, py=parseFloat(boxEl.style.top)/ppmLocal;
+        const pw=w/ppmLocal, ph=h/ppmLocal;
+        onChange(item, {px:snapFine(px), py:snapFine(py), pw:snapFine(pw), ph:snapFine(ph)});
+      } else { onTap(item); }
+    }
+    document.addEventListener('pointermove',onMove); document.addEventListener('pointerup',onUp,{once:true});
+  });
+  const handle = boxEl.querySelector('.resize-handle-sm');
+  if(handle){
+    blockTouchScroll(handle);
+    handle.addEventListener('pointerdown',(e)=>{
+      e.preventDefault(); e.stopPropagation();
+      try{ handle.setPointerCapture(e.pointerId); }catch(err){}
+      const grid = boxEl.parentElement.querySelector('.picgrid'); if(grid) grid.classList.add('show');
+      const ruler = boxEl.parentElement.querySelector('.pic-ruler'); if(ruler) ruler.classList.add('show');
+      const readout = document.createElement('div');
+      readout.className = 'coord-readout';
+      boxEl.parentElement.appendChild(readout);
+      const siblings = siblingRectsOf(boxEl);
+      const startX=e.clientX, startY=e.clientY;
+      const startW=parseFloat(boxEl.style.width), startH=parseFloat(boxEl.style.height);
+      const left = parseFloat(boxEl.style.left), top = parseFloat(boxEl.style.top);
+      const maxW = Math.max(30, boundsWH.w*ppmLocal - left), maxH = Math.max(22, boundsWH.h*ppmLocal - top);
+      function blocked(w,h){ return siblings.some(r=>rectOverlap(left,top,w,h,r)); }
+      function updateReadout(curW,curH){
+        const distFromLeft = left/ppmLocal, distFromBottom = boundsWH.h - (top+curH)/ppmLocal;
+        readout.textContent = `${distFromLeft.toFixed(1)}m, ${distFromBottom.toFixed(1)}m (${(curW/ppmLocal).toFixed(1)}m\u00D7${(curH/ppmLocal).toFixed(1)}m)`;
+        const canvasPxW = boundsWH.w*ppmLocal, canvasPxH = boundsWH.h*ppmLocal;
+        const cornerX = left+curW, cornerY = top+curH;
+        readout.style.left = Math.min(Math.max(cornerX, 45), canvasPxW-45)+'px';
+        if(cornerY > canvasPxH-34){ readout.style.top=cornerY+'px'; readout.style.transform='translate(-85%, -140%)'; }
+        else { readout.style.top=cornerY+'px'; readout.style.transform='translate(-85%, 20%)'; }
+      }
+      updateReadout(startW,startH);
+      function onMove(ev){
+        ev.preventDefault();
+        const dx=ev.clientX-startX, dy=ev.clientY-startY;
+        const wantW = Math.min(maxW, Math.max(30,startW+dx));
+        const wantH = Math.min(maxH, Math.max(22,startH+dy));
+        const curW = parseFloat(boxEl.style.width), curH = parseFloat(boxEl.style.height);
+        if(!blocked(wantW, wantH)){ boxEl.style.width=wantW+'px'; boxEl.style.height=wantH+'px'; }
+        else if(!blocked(wantW, curH)){ boxEl.style.width=wantW+'px'; }
+        else if(!blocked(curW, wantH)){ boxEl.style.height=wantH+'px'; }
+        updateReadout(parseFloat(boxEl.style.width), parseFloat(boxEl.style.height));
+      }
+      function onUp(){
+        document.removeEventListener('pointermove',onMove); document.removeEventListener('pointerup',onUp);
+        if(grid) grid.classList.remove('show');
+        if(ruler) ruler.classList.remove('show');
+        readout.remove();
+        const px=left/ppmLocal, py=top/ppmLocal;
+        const pw=parseFloat(boxEl.style.width)/ppmLocal, ph=parseFloat(boxEl.style.height)/ppmLocal;
+        onChange(item, {px:snapFine(px), py:snapFine(py), pw:snapFine(pw), ph:snapFine(ph)});
+      }
+      document.addEventListener('pointermove',onMove); document.addEventListener('pointerup',onUp,{once:true});
+    });
+  }
+}
+function renderPictureCanvas(containerId, obj, items, getLabel, getFamily, onChange, onTap, highlightId, isEmptyFn, getColor){
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  const bw = obj.w||2, bh = obj.h||1;
+  const wrapEl = el.parentElement;
+  const availW = Math.max(200, (wrapEl?wrapEl.clientWidth:320) - 4);
+  const availH = Math.max(140, Math.min(window.innerHeight*0.42, 420));
+  let ppmLocal = Math.min(availW/bw, availH/bh);
+  ppmLocal = Math.max(8, ppmLocal);
+  const pxW = Math.round(bw*ppmLocal), pxH = Math.round(bh*ppmLocal);
+  el.style.width = pxW+'px'; el.style.height = pxH+'px';
+
+  const n = items.length;
+  let rulerSvg = `<svg class="pic-ruler" width="${pxW}" height="${pxH}">`;
+  for(let m=0; m<=Math.ceil(bw)+0.001; m++){
+    const px = m*ppmLocal;
+    rulerSvg += `<line x1="${px}" y1="${pxH-7}" x2="${px}" y2="${pxH}" stroke="#4A3728" stroke-width="1.5"/><text x="${px}" y="${pxH-10}" font-size="9" fill="#4A3728" text-anchor="middle">${m}</text>`;
+  }
+  for(let m=0; m<=Math.ceil(bh)+0.001; m++){
+    const py = pxH - m*ppmLocal;
+    rulerSvg += `<line x1="0" y1="${py}" x2="7" y2="${py}" stroke="#4A3728" stroke-width="1.5"/><text x="10" y="${py+3}" font-size="9" fill="#4A3728" text-anchor="start">${m}</text>`;
+  }
+  rulerSvg += `</svg>`;
+  let html = `<div class="picgrid" style="background-image:linear-gradient(to right, rgba(74,55,40,0.18) 1px, transparent 1px), linear-gradient(to bottom, rgba(74,55,40,0.18) 1px, transparent 1px); background-size:${ppmLocal*0.2}px ${ppmLocal*0.2}px;"></div>${rulerSvg}`;
+  items.forEach((it,idx)=>{
+    let px=it.px, py=it.py, pw=it.pw, ph=it.ph;
+    if(px==null||py==null||pw==null||ph==null){ const bandH=bh/Math.max(1,n); px=0; py=idx*bandH; pw=bw; ph=bandH; }
+    const left=px*ppmLocal, top=py*ppmLocal, w=Math.max(30,pw*ppmLocal), h=Math.max(22,ph*ppmLocal);
+    const hl = (highlightId && it.id===highlightId) ? ' hl' : '';
+    const isEmpty = isEmptyFn ? isEmptyFn(it) : false;
+    const col = (!isEmpty && getColor) ? getColor(it) : null;
+    const colStyle = col ? `border-color:${col}; background:${col}22;` : '';
+    const showResize = !it.sizeLocked;
+    html += `<div class="crop-box${hl}${isEmpty?' empty':''}" data-idx="${idx}" style="left:${left}px; top:${top}px; width:${w}px; height:${h}px; ${colStyle}">
+      ${isEmpty?'':`<span class="fam-dot" style="background:${col};"></span>`}<span class="lbl">${escapeHTML(getLabel(it))}</span>
+      ${showResize?`<div class="resize-handle-sm" style="${col?`background:${col};`:''}"></div>`:''}</div>`;
+  });
+  el.innerHTML = html;
+  el.querySelectorAll('.crop-box').forEach(boxEl=>{
+    const idx = parseInt(boxEl.dataset.idx);
+    wireCropBox(boxEl, items[idx], ppmLocal, {w:bw,h:bh}, onChange, onTap);
+  });
+}
+
+/* ======================= MAP ======================= */
+function getShapeBounds(){
+  const pts = (STATE.settings.plotShape && STATE.settings.plotShape.length>=3) ? STATE.settings.plotShape : defaultShape(STATE.settings.plotWidthM||10, STATE.settings.plotDepthM||6);
+  const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y), pad=0.4;
+  const minX=Math.min(...xs)-pad, minY=Math.min(...ys)-pad, maxX=Math.max(...xs)+pad, maxY=Math.max(...ys)+pad;
+  return {pts, minX,minY,maxX,maxY,width:maxX-minX,height:maxY-minY};
+}
+function getTightBounds(){
+  const pts = (STATE.settings.plotShape && STATE.settings.plotShape.length>=3) ? STATE.settings.plotShape : defaultShape(STATE.settings.plotWidthM||10, STATE.settings.plotDepthM||6);
+  const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
+  return {minX:Math.min(...xs), minY:Math.min(...ys), maxX:Math.max(...xs), maxY:Math.max(...ys)};
+}
+let currentPPM = 40;
+
+function renderMap(){
+  const area = document.getElementById('mapArea');
+  if(!STATE.settings.plotShape){
+    area.innerHTML = `<p class="muted" style="margin-bottom:12px;">Let's set up your plot first.</p>
+      <div class="form-row"><div><label>Width (metres)</label><input type="number" step="0.1" id="onbWidth" placeholder="e.g. 10"></div>
+      <div><label>Depth (metres)</label><input type="number" step="0.1" id="onbDepth" placeholder="e.g. 6"></div></div>
+      <button class="btn" id="onbCreate">Create my plot</button>`;
+    document.getElementById('onbCreate').addEventListener('click', async ()=>{
+      const w = parseFloat(document.getElementById('onbWidth').value)||10;
+      const h = parseFloat(document.getElementById('onbDepth').value)||6;
+      await setMeta('plotWidthM', w); await setMeta('plotDepthM', h); await setMeta('plotShape', defaultShape(w,h));
+      await afterChange();
+    });
+    return;
+  }
+
+  const bounds = getShapeBounds();
+  if(!area.querySelector('.map-wrap')) area.innerHTML = `<div class="map-wrap" id="mapWrap"><div class="map-canvas" id="mapCanvas"></div></div>`;
+  const wrapEl = document.getElementById('mapWrap');
+  const availW = Math.max(260, wrapEl.clientWidth - 4);
+  const availH = Math.max(260, Math.min(window.innerHeight*0.72, 900));
+  let ppm = Math.min(availW/bounds.width, availH/bounds.height);
+  ppm = Math.max(12, Math.min(160, ppm));
+  currentPPM = ppm;
+  const pxW = bounds.width*ppm, pxH = bounds.height*ppm;
+  const canvas = document.getElementById('mapCanvas');
+  canvas.style.width = pxW+'px'; canvas.style.height = pxH+'px';
+
+  const polyPts = bounds.pts.map(p=>`${(p.x-bounds.minX)*ppm},${(p.y-bounds.minY)*ppm}`).join(' ');
+  const gStep = ppm*0.2;
+  let gridLines = '';
+  for(let gx=0; gx<=pxW+0.5; gx+=gStep) gridLines += `<line x1="${gx}" y1="0" x2="${gx}" y2="${pxH}" stroke="rgba(74,55,40,0.12)" stroke-width="1"/>`;
+  for(let gy=0; gy<=pxH+0.5; gy+=gStep) gridLines += `<line x1="0" y1="${gy}" x2="${pxW}" y2="${gy}" stroke="rgba(74,55,40,0.12)" stroke-width="1"/>`;
+  const tb = getTightBounds();
+  let rulerTicks = '';
+  for(let m=0; m<=Math.ceil(tb.maxX-tb.minX)+0.001; m++){
+    const px = (tb.minX+m-bounds.minX)*ppm;
+    rulerTicks += `<line x1="${px}" y1="${pxH-8}" x2="${px}" y2="${pxH}" stroke="#4A3728" stroke-width="1.5"/><text x="${px}" y="${pxH-11}" font-size="10" fill="#4A3728" text-anchor="middle">${m}</text>`;
+  }
+  for(let m=0; m<=Math.ceil(tb.maxY-tb.minY)+0.001; m++){
+    const py = (tb.maxY-m-bounds.minY)*ppm;
+    rulerTicks += `<line x1="0" y1="${py}" x2="8" y2="${py}" stroke="#4A3728" stroke-width="1.5"/><text x="11" y="${py+3}" font-size="10" fill="#4A3728" text-anchor="start">${m}</text>`;
+  }
+  let html = `<svg class="ground" width="${pxW}" height="${pxH}"><polygon class="ground-poly" points="${polyPts}" fill="${STATE.settings.groundColor||GROUND_COLORS[0]}"></polygon><g class="grid-layer" id="gridLayer">${gridLines}</g><g class="grid-layer" id="rulerLayer">${rulerTicks}</g></svg>`;
+
+  if(outlineEditing){
+    for(const p of bounds.pts){
+      const px=(p.x-bounds.minX)*ppm, py=(p.y-bounds.minY)*ppm;
+      html += `<div class="vertex-handle" style="left:${px}px; top:${py}px;" data-vx="${p.x}" data-vy="${p.y}"></div>`;
+    }
+  } else {
+    const objs = [...STATE.beds.map(b=>({...b, _kind:'bed'})), ...STATE.features.map(f=>({...f, _kind:'feature'}))];
+    for(const o of objs){
+      const left=(o.x-bounds.minX)*ppm, top=(o.y-bounds.minY)*ppm, w=o.w*ppm, h=o.h*ppm;
+      const lockBadge = o.locked ? '<span class="lock-badge">🔒</span>' : '';
+      const iconPx = Math.max(11, Math.min(26, Math.min(w,h)*0.4));
+      if(o._kind==='bed'){
+        const cropCols=[...new Set((o.plantings||[]).filter(p=>p.active).map(p=>{const cr=cropById(p.cropId); return cr?cropColor(cr):null;}).filter(Boolean))];
+        const eligible = placingMode ? ' placeable' : '';
+        const hasShape = o.shape && o.shape.length>=3;
+        const bedCol = o.color || '#7E9A6D';
+        const bg = hasShape ? '' : (o.color ? `background:${o.color}30; border-color:${o.color};` : '');
+        const shapeSVG = hasShape ? `<svg width="${w}" height="${h}" style="position:absolute; left:0; top:0; pointer-events:none;" shape-rendering="geometricPrecision"><polygon points="${o.shape.map(p=>`${Math.round(p.x/o.w*w)},${Math.round(p.y/o.h*h)}`).join(' ')}" fill="${bedCol}40" stroke="${bedCol}" stroke-width="1.25" stroke-linejoin="round"></polygon></svg>` : '';
+        html += `<div class="mapObj ${o.raised?'raised':''}${eligible}${hasShape?' shaped':''}" data-kind="bed" data-id="${o.id}" data-locked="${o.locked?1:0}" style="left:${left}px; top:${top}px; width:${w}px; height:${h}px; ${bg}">
+          ${shapeSVG}${lockBadge}<span class="icon" style="font-size:${iconPx}px;">${o.raised?ICON_RAISEDBED:'🌱'}</span><span class="lbl">${escapeHTML(o.name)}</span><span class="fams-dot-row">${cropCols.map(c=>`<span class="fam-dot" style="background:${c};"></span>`).join('')}</span></div>`;
+      } else {
+        const info = FEATURE_TYPES[o.type]||{icon:'❔',label:o.type};
+        const iconHTML = info.icon.startsWith('<svg') ? info.icon : `<span style="font-size:${iconPx}px;">${info.icon}</span>`;
+        html += `<div class="mapObj type-${o.type}" data-kind="feature" data-type="${o.type}" data-id="${o.id}" data-locked="${o.locked?1:0}" style="left:${left}px; top:${top}px; width:${w}px; height:${h}px;">
+          ${lockBadge}<span class="icon">${iconHTML}</span><span class="lbl">${escapeHTML(o.label||info.label)}</span></div>`;
+      }
+    }
+  }
+  canvas.innerHTML = html;
+
+  if(outlineEditing){
+    document.getElementById('gridLayer').classList.add('show');
+    canvas.querySelectorAll('.vertex-handle').forEach(h=>wireVertexHandle(h,bounds));
+    const toolbar = document.getElementById('outlineToolbar');
+    toolbar.style.display='flex';
+    toolbar.innerHTML = `<button class="btn small" id="btnAddCorner">+ Add a corner</button><button class="btn small" id="btnDoneReshape">✓ Save &amp; Finish</button>`;
+    document.getElementById('btnAddCorner').addEventListener('click', addCorner);
+    document.getElementById('btnDoneReshape').addEventListener('click', ()=>{ outlineEditing=false; toast('Outline saved'); goToTab('setup'); renderAll(); });
+  } else {
+    document.getElementById('outlineToolbar').style.display='none';
+    canvas.querySelectorAll('.mapObj').forEach(el=>wireMapObj(el,bounds));
+    canvas.addEventListener('click', onCanvasBackgroundClick, {once:false});
+  }
+}
+function onCanvasBackgroundClick(e){
+  if(outlineEditing) return;
+  if(placingMode) return;
+  if(backdrop.classList.contains('open')) return;
+  if(!document.getElementById('view-map').classList.contains('active')) return;
+  if(e.target.closest('.mapObj')) return;
+  const bounds = getShapeBounds();
+  const rect = e.currentTarget.getBoundingClientRect();
+  const mx = bounds.minX + (e.clientX-rect.left)/currentPPM;
+  const my = bounds.minY + (e.clientY-rect.top)/currentPPM;
+  requireUnlock(()=> openCellChooser(snapMap(mx), snapMap(my)));
+}
+function wireMapObj(el, bounds){
+  blockTouchScroll(el);
+  el.addEventListener('pointerdown', (e)=>{
+    e.preventDefault(); e.stopPropagation();
+    if(placingMode){
+      if(el.dataset.kind==='bed') confirmPlacement(el.dataset.id);
+      return;
+    }
+    if(el.dataset.locked==='1'){
+      openObjectDetail(el.dataset.kind, el.dataset.id, el.dataset.type);
+      return;
+    }
+    try{ el.setPointerCapture(e.pointerId); }catch(err){}
+    const grid = document.getElementById('gridLayer'); if(grid) grid.classList.add('show');
+    const ruler = document.getElementById('rulerLayer'); if(ruler) ruler.classList.add('show');
+    const tbForReadout = getTightBounds();
+    const obj0 = el.dataset.kind==='bed' ? bedById(el.dataset.id) : featureById(el.dataset.id);
+    const objW = obj0 ? obj0.w : 0, objH = obj0 ? obj0.h : 0;
+    const readout = document.createElement('div');
+    readout.className = 'coord-readout';
+    el.parentElement.appendChild(readout);
+    const startX=e.clientX, startY=e.clientY;
+    const startLeft = parseFloat(el.style.left), startTop = parseFloat(el.style.top);
+    let moved=false;
+    function updateReadout(){
+      const objX = bounds.minX + parseFloat(el.style.left)/currentPPM;
+      const objY = bounds.minY + parseFloat(el.style.top)/currentPPM;
+      const distFromLeft = objX - tbForReadout.minX;
+      const distFromBottom = tbForReadout.maxY - (objY + objH);
+      readout.textContent = `${distFromLeft.toFixed(1)}m, ${distFromBottom.toFixed(1)}m`;
+      const elLeft = parseFloat(el.style.left), elTop = parseFloat(el.style.top);
+      const elW = objW*currentPPM, elH = objH*currentPPM;
+      const canvasPxW = bounds.width*currentPPM;
+      const centerX = Math.min(Math.max(elLeft+elW/2, 40), canvasPxW-40);
+      readout.style.left = centerX + 'px';
+      if(elTop < 34){ readout.style.top = (elTop+elH)+'px'; readout.style.transform = 'translate(-50%, 40%)'; }
+      else { readout.style.top = elTop+'px'; readout.style.transform = 'translate(-50%, -140%)'; }
+    }
+    updateReadout();
+    function onMove(ev){
+      ev.preventDefault();
+      const dx=ev.clientX-startX, dy=ev.clientY-startY;
+      if(Math.abs(dx)>5||Math.abs(dy)>5) moved=true;
+      if(moved){ el.style.left=(startLeft+dx)+'px'; el.style.top=(startTop+dy)+'px'; el.style.zIndex=5; el.style.cursor='grabbing'; updateReadout(); }
+    }
+    async function onUp(ev){
+      document.removeEventListener('pointermove',onMove); document.removeEventListener('pointerup',onUp);
+      el.style.zIndex=''; el.style.cursor='grab';
+      if(grid) grid.classList.remove('show');
+      if(ruler) ruler.classList.remove('show');
+      readout.remove();
+      if(moved){
+        const obj = el.dataset.kind==='bed' ? bedById(el.dataset.id) : featureById(el.dataset.id);
+        const tb = getTightBounds();
+        let newX = snapMap(bounds.minX + parseFloat(el.style.left)/currentPPM);
+        let newY = snapMap(bounds.minY + parseFloat(el.style.top)/currentPPM);
+        if(obj){ newX = Math.min(Math.max(newX, tb.minX), tb.maxX-obj.w); newY = Math.min(Math.max(newY, tb.minY), tb.maxY-obj.h); }
+        await moveObject(el.dataset.kind, el.dataset.id, newX, newY);
+      } else {
+        openObjectDetail(el.dataset.kind, el.dataset.id, el.dataset.type);
+      }
+    }
+    document.addEventListener('pointermove',onMove); document.addEventListener('pointerup',onUp,{once:true});
+  });
+}
+async function moveObject(kind,id,x,y){
+  const obj = kind==='bed' ? bedById(id) : featureById(id);
+  if(!obj) return; obj.x=x; obj.y=y; obj.movedBy=who();
+  await put(kind==='bed'?'beds':'features', obj); await afterChange();
+}
+function wireVertexHandle(handle,bounds){
+  blockTouchScroll(handle);
+  handle.addEventListener('pointerdown',(e)=>{
+    e.preventDefault(); e.stopPropagation();
+    try{ handle.setPointerCapture(e.pointerId); }catch(err){}
+    const startX=e.clientX, startY=e.clientY;
+    const startLeft=parseFloat(handle.style.left), startTop=parseFloat(handle.style.top);
+    let moved=false;
+    function onMove(ev){
+      ev.preventDefault();
+      const dx=ev.clientX-startX, dy=ev.clientY-startY;
+      if(Math.abs(dx)>5||Math.abs(dy)>5) moved=true;
+      handle.style.left=(startLeft+dx)+'px'; handle.style.top=(startTop+dy)+'px';
+    }
+    async function onUp(){
+      document.removeEventListener('pointermove',onMove); document.removeEventListener('pointerup',onUp);
+      if(moved){
+        const nx = snapMap(bounds.minX + parseFloat(handle.style.left)/currentPPM);
+        const ny = snapMap(bounds.minY + parseFloat(handle.style.top)/currentPPM);
+        const pts = STATE.settings.plotShape.slice();
+        const idx = pts.findIndex(p=>p.x===parseFloat(handle.dataset.vx) && p.y===parseFloat(handle.dataset.vy));
+        if(idx>=0){ pts[idx]={x:nx,y:ny}; await setMeta('plotShape', pts); await syncPlotDimsFromShape(pts); await afterChange(); }
+      } else if(STATE.settings.plotShape.length>3){
+        if(await confirmDialog('Remove this corner?')){
+          const pts = STATE.settings.plotShape.filter(p=>!(p.x===parseFloat(handle.dataset.vx) && p.y===parseFloat(handle.dataset.vy)));
+          await setMeta('plotShape', pts); await syncPlotDimsFromShape(pts); await afterChange();
+        }
+      }
+    }
+    document.addEventListener('pointermove',onMove); document.addEventListener('pointerup',onUp,{once:true});
+  });
+}
+async function syncPlotDimsFromShape(pts){
+  const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
+  await setMeta('plotWidthM', snapMap(Math.max(...xs)-Math.min(...xs)));
+  await setMeta('plotDepthM', snapMap(Math.max(...ys)-Math.min(...ys)));
+}
+async function addCorner(){
+  const pts = STATE.settings.plotShape.slice();
+  let bestI=0, bestLen=-1;
+  for(let i=0;i<pts.length;i++){
+    const a=pts[i], b=pts[(i+1)%pts.length];
+    const len = Math.hypot(b.x-a.x, b.y-a.y);
+    if(len>bestLen){ bestLen=len; bestI=i; }
+  }
+  const a=pts[bestI], b=pts[(bestI+1)%pts.length];
+  const mid = {x:snapMap((a.x+b.x)/2), y:snapMap((a.y+b.y)/2)};
+  pts.splice(bestI+1,0,mid);
+  await setMeta('plotShape', pts); await syncPlotDimsFromShape(pts); await afterChange();
+}
+function openCellChooser(x,y){
+  const opts = Object.entries(FEATURE_TYPES).map(([key,info])=>`<button class="type-opt" data-type="${key}"><span class="icon">${info.icon}</span>${info.label}</button>`).join('');
+  openModal(`<h3>What's here?</h3><div class="type-grid">${opts}</div>`);
+  modalContent.querySelectorAll('[data-type]').forEach(b=>b.addEventListener('click', ()=>handlePlaceType(x,y,b.dataset.type)));
+}
+function handlePlaceType(cx,cy,type){
+  const [dw,dh] = DEFAULT_SIZE[type]||[1,1];
+  const tb = getTightBounds();
+  let x = snapMap(cx-dw/2), y = snapMap(cy-dh/2);
+  x = Math.min(Math.max(x, tb.minX), tb.maxX-dw);
+  y = Math.min(Math.max(y, tb.minY), tb.maxY-dh);
+  if(type==='bed' || type==='raisedbed'){
+    let picked = BED_COLORS[0];
+    const swatches = BED_COLORS.map(c=>`<div class="swatch ${c===picked?'picked':''}" data-c="${c}" style="background:${c};"></div>`).join('');
+    openModal(`<h3>Name this ${type==='raisedbed'?'raised bed':'bed'}</h3>
+      <div class="form-row"><div><input type="text" id="mName" placeholder="e.g. Top bed" autofocus></div></div>
+      <label>Colour</label><div class="swatch-row" id="swRow">${swatches}</div>
+      <button class="btn big" id="mSave">Add</button>`);
+    modalContent.querySelectorAll('.swatch').forEach(s=>s.addEventListener('click', ()=>{
+      modalContent.querySelectorAll('.swatch').forEach(x=>x.classList.remove('picked')); s.classList.add('picked'); picked=s.dataset.c;
+    }));
+    document.getElementById('mSave').addEventListener('click', async ()=>{
+      const name = document.getElementById('mName').value.trim() || (type==='raisedbed'?'Raised bed':'Bed');
+      await put('beds', {id:uid(), name, x, y, w:dw, h:dh, color:picked, raised:type==='raisedbed', plantings:[], history:[], treatments:[], createdBy:who()});
+      await afterChange(); closeModal();
+    });
+    setTimeout(()=>document.getElementById('mName')?.focus(),50);
+  } else if(type==='tree'){
+    openModal(`<h3>Name this tree (optional)</h3>
+      <div class="form-row"><div><input type="text" id="mName" placeholder="e.g. Apple by the fence"></div></div>
+      <button class="btn big" id="mSave">Add Tree</button>`);
+    document.getElementById('mSave').addEventListener('click', async ()=>{
+      const label = document.getElementById('mName').value.trim() || 'Fruit tree';
+      await put('features', {id:uid(), type:'tree', x, y, w:dw, h:dh, label, treatments:[], createdBy:who()});
+      await afterChange(); closeModal();
+    });
+  } else {
+    const info = FEATURE_TYPES[type];
+    (async ()=>{ await put('features', {id:uid(), type, x, y, w:dw, h:dh, label:info.label, createdBy:who()}); await afterChange(); closeModal(); })();
+  }
+}
+function openObjectDetail(kind,id,type){
+  if(kind==='bed') openBedDetail(id);
+  else if(type==='basket') openBasketDetail();
+  else if(type==='tree') openTreeDetail(id);
+  else if(type==='greenhouse' || type==='polytunnel') openStructureDetail(featureById(id));
+  else openFeatureDetail(featureById(id));
+}
+function lockToggleHTML(obj){
+  return `<div class="toggle-row"><span>Lock position</span><label class="switch"><input type="checkbox" id="mLocked" ${obj.locked?'checked':''}><span class="slider"></span></label></div>`;
+}
+function stampHTML(obj){
+  const bits = [];
+  if(obj.createdBy) bits.push(`added by ${escapeHTML(obj.createdBy)}`);
+  if(obj.movedBy && obj.movedBy!==obj.createdBy) bits.push(`last moved by ${escapeHTML(obj.movedBy)}`);
+  return bits.length ? `<p class="tiny-muted">${bits.join(' &middot; ')}</p>` : '';
+}
+function openFeatureDetail(feat){
+  const info = FEATURE_TYPES[feat.type];
+  openModal(`<h3>${info.icon} ${escapeHTML(feat.label||info.label)}</h3>
+    ${stampHTML(feat)}
+    <div class="form-row"><div><label>Label</label><input type="text" id="mLabel" value="${escapeAttr(feat.label||info.label)}"></div></div>
+    <div class="form-row"><div><label>Width (m)</label><input type="number" step="0.1" id="mW" value="${feat.w}"></div><div><label>Depth (m)</label><input type="number" step="0.1" id="mH" value="${feat.h}"></div></div>
+    ${lockToggleHTML(feat)}
+    <div class="btn-row"><button class="btn" id="mSave">Save</button><button class="btn danger" id="mDel">Remove this ${escapeHTML(info.label.toLowerCase())} from the map</button></div>`);
+  document.getElementById('mSave').addEventListener('click', async ()=>{
+    feat.label=document.getElementById('mLabel').value.trim()||info.label;
+    feat.w = Math.max(0.15, snapMap(parseFloat(document.getElementById('mW').value)||feat.w));
+    feat.h = Math.max(0.15, snapMap(parseFloat(document.getElementById('mH').value)||feat.h));
+    feat.locked = document.getElementById('mLocked').checked;
+    await put('features',feat); await afterChange(); closeModal();
+  });
+  document.getElementById('mDel').addEventListener('click', ()=>{
+    requireUnlock(async ()=>{ if(await confirmDialog('Remove this from your map?', ()=>openFeatureDetail(feat))){ await del('features',feat.id); await afterChange(); closeModal(); } });
+  });
+}
+function openBasketDetail(){
+  const list = STATE.harvests.slice().sort((a,b)=>b.harvestDate.localeCompare(a.harvestDate)).slice(0,20);
+  const rows = list.map(h=>`<div class="planting-row">
+    <span class="fam-dot" style="background:${h.cropId&&cropById(h.cropId)?cropColor(cropById(h.cropId)):colorForCropName(h.cropName||'?')};"></span>
+    <span class="pname">${escapeHTML(h.cropName)} <span class="muted">(${escapeHTML(h.locationLabel||'')})</span></span>
+    <span class="pdate">${h.rating}/10 &middot; ${dayLabel(h.harvestDate)}${h.by?' &middot; '+escapeHTML(h.by):''}</span>
+  </div>`).join('') || '<p class="muted">Nothing harvested yet.</p>';
+  openModal(`<h3>🧺 Basket</h3>${rows}`);
+}
+
+/* ---- Bed detail ---- */
+function treatmentsSectionHTML(obj, storeKind){
+  const list = (obj.treatments||[]).slice().reverse().map(t=>
+    `<div class="planting-row" style="cursor:pointer;" data-edittreatment="${t.id}"><span class="pname">${escapeHTML(t.type)}${t.notes?': '+escapeHTML(t.notes):''}${t.reason?' — '+escapeHTML(t.reason):''}</span><span class="pdate">${dayLabel(t.date)}${t.by?' &middot; '+escapeHTML(t.by):''}</span></div>`
+  ).join('');
+  return `<details class="timings" style="margin-top:10px;"><summary>Feed &amp; treatments (optional)</summary>
+    ${list || '<p class="muted">Nothing logged.</p>'}
+    <button class="btn small secondary" id="mAddTreatment" data-store="${storeKind}" data-id="${obj.id}" style="margin-top:8px;">+ Add one</button></details>`;
+}
+function openBedDetail(bedId, highlightId){
+  const bed = bedById(bedId);
+  if(!bed){ goHome(); return; }
+  const active = (bed.plantings||[]).filter(p=>p.active);
+  const groups = {};
+  for(const p of active){ const key=p.rowLabel||''; groups[key]=groups[key]||[]; groups[key].push(p); }
+  let rows='';
+  for(const key of Object.keys(groups)){
+    if(key) rows += `<div class="row-heading">${escapeHTML(key)}</div>`;
+    rows += groups[key].map(p=>{
+      const c = cropById(p.cropId);
+      return `<div class="planting-row"><span class="fam-dot" style="background:${c?cropColor(c):'#8a8a7a'};"></span>
+        <span class="pname" style="cursor:pointer;" data-info="${p.id}">${(c && c.name)?escapeHTML(c.name):'Something'}</span>
+        <span class="pdate">${p.harvestDue?('ready around '+dayLabel(p.harvestDue)):''}</span>
+        <button class="btn small" data-harvest="${p.id}">Harvest</button></div>`;
+    }).join('');
+  }
+  if(!rows) rows = '<p class="muted">Nothing planted here yet.</p>';
+
+  let warn='';
+  const lastFamilies = (bed.history||[]).slice(-2).map(h=>h.family);
+  const incoming = active.map(p=>{const c=cropById(p.cropId); return c?c.family:null;});
+  if(incoming.some(f=>f && lastFamilies.includes(f))) warn = `<div class="warn-note">This bed grew the same family recently — worth rotating to something else next time.</div>`;
+
+  const swatches = BED_COLORS.map(c=>`<div class="swatch ${c===bed.color?'picked':''}" data-c="${c}" style="background:${c};"></div>`).join('');
+  const siblings = bed.group ? STATE.beds.filter(b=>b.group===bed.group && b.id!==bed.id) : [];
+  const groupHTML = siblings.length ? `<div class="group-links">${siblings.map(s=>`<button class="btn small secondary" data-jump="${s.id}">${escapeHTML(s.name)}</button>`).join('')}</div>` : '';
+
+  openModal(`<h3>${bed.raised?'🟫':'🌱'} ${escapeHTML(bed.name)}</h3>
+    ${stampHTML(bed)}
+    ${bed.group?`<p class="muted">Part of "${escapeHTML(bed.group)}":</p>${groupHTML}`:''}
+    <div class="bed-picture-wrap"><div class="bed-picture" id="bedPic"></div></div>
+    <p class="picture-help">Drag a crop's box to where it is, and its corner to resize it. Tap it for details.</p>
+    ${rows}${warn}${treatmentsSectionHTML(bed,'beds')}
+    <div class="btn-row">
+      <button class="btn" id="mSow">+ Plant another crop here</button>
+      <button class="btn secondary" id="mEdit">Edit bed</button>
+    </div>`, true);
+
+  modalContent.querySelectorAll('[data-jump]').forEach(b=>b.addEventListener('click', ()=>openBedDetail(b.dataset.jump)));
+
+  renderPictureCanvas('bedPic', bed, active,
+    p=>{ const c=cropById(p.cropId); return (c && c.name) ? c.name : '?'; },
+    p=>{ const c=cropById(p.cropId); return c?c.family:'Other'; },
+    async (planting, vals)=>{ Object.assign(planting, vals); await put('beds', bed); if(supa) schedulePush(); },
+    (planting)=> openPlantingInfo(bedId, planting.id),
+    highlightId, null,
+    p=>{ const c=cropById(p.cropId); return c?cropColor(c):'#8a8a7a'; }
+  );
+
+  modalContent.querySelectorAll('[data-harvest]').forEach(b=>b.addEventListener('click', ()=>{
+    const p = bed.plantings.find(pp=>pp.id===b.dataset.harvest);
+    openHarvestModal({kind:'planting', bed, planting:p, crop:cropById(p.cropId)});
+  }));
+  modalContent.querySelectorAll('[data-info]').forEach(b=>b.addEventListener('click', ()=> openPlantingInfo(bedId, b.dataset.info)));
+  document.getElementById('mAddTreatment').addEventListener('click', ()=> openAddTreatment(bed,'beds', ()=>openBedDetail(bed.id)));
+  wireTreatmentRows(bed,'beds', ()=>openBedDetail(bed.id));
+  document.getElementById('mSow').addEventListener('click', ()=> openDirectSow(bedId));
+  document.getElementById('mEdit').addEventListener('click', ()=>{
+    requireUnlock(()=>{
+    openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>Edit bed</h3>
+      <div class="form-row"><div><label>Name</label><input type="text" id="mName" value="${escapeAttr(bed.name)}"></div></div>
+      <label>Colour</label><div class="swatch-row" id="swRow">${swatches}</div>
+      <div class="form-row"><div><label>Width (m)</label><input type="number" step="0.1" id="mW" value="${bed.w}"></div><div><label>Depth (m)</label><input type="number" step="0.1" id="mH" value="${bed.h}"></div></div>
+      <div class="form-row"><div><label>Part of a group (optional)</label><input type="text" id="mGroup" value="${escapeAttr(bed.group||'')}" placeholder="e.g. Big bed"></div></div>
+      ${lockToggleHTML(bed)}
+      <div class="btn-row"><button class="btn secondary" id="mReshapeBed">${bed.shape?'Change bed shape':'Not a plain rectangle? Reshape it'}</button></div>
+      <button class="btn big" id="mSave" style="margin-top:10px;">Save</button>
+      <button class="btn danger" id="mDel" style="margin-top:24px;">Remove this bed</button>`, true);
+    document.getElementById('mBack').addEventListener('click', ()=>openBedDetail(bedId));
+    document.getElementById('mReshapeBed').addEventListener('click', ()=> openBedShapeEditor(bedId));
+    let picked = bed.color;
+    modalContent.querySelectorAll('.swatch').forEach(s=>s.addEventListener('click', ()=>{
+      modalContent.querySelectorAll('.swatch').forEach(x=>x.classList.remove('picked')); s.classList.add('picked'); picked=s.dataset.c;
+    }));
+    document.getElementById('mSave').addEventListener('click', async ()=>{
+      bed.name=document.getElementById('mName').value.trim()||bed.name; bed.color=picked;
+      const newW = Math.max(0.3, snapMap(parseFloat(document.getElementById('mW').value)||bed.w));
+      const newH = Math.max(0.3, snapMap(parseFloat(document.getElementById('mH').value)||bed.h));
+      if(bed.shape && (newW!==bed.w || newH!==bed.h)) bed.shape = scaleLocalShape(bed.shape, bed.w, bed.h, newW, newH);
+      bed.w = newW; bed.h = newH;
+      bed.group = document.getElementById('mGroup').value.trim();
+      bed.locked = document.getElementById('mLocked').checked;
+      await put('beds',bed); await afterChange(); closeModal();
+    });
+    document.getElementById('mDel').addEventListener('click', async ()=>{
+      if(await confirmDialog('Remove this bed and everything planted in it?', ()=>openBedDetail(bedId))){ await del('beds',bed.id); await afterChange(); closeModal(); }
+    });
+    });
+  });
+}
+function openPlantingInfo(bedId, plantingId){
+  const bed = bedById(bedId); if(!bed){ goHome(); return; }
+  const p = bed.plantings.find(pp=>pp.id===plantingId); if(!p){ openBedDetail(bedId); return; }
+  const crop = cropById(p.cropId);
+  openModal(`<button class="back-link" id="mBack">&larr; Back to ${escapeHTML(bed.name)}</button>
+    <h3>${(crop && crop.name)?escapeHTML(crop.name):'Planting'}</h3>
+    <div class="planting-row"><span class="pname">Planted</span><input type="date" class="inline-edit" id="mEditDate" value="${p.date}"></div>
+    <div class="planting-row"><span class="pname">Where</span><span class="pdate">${escapeHTML(bed.name)}</span></div>
+    <div class="planting-row"><span class="pname">How many</span><input type="number" class="inline-edit" id="mEditQty" value="${p.quantity||1}" min="1"></div>
+    ${p.harvestDue?`<div class="planting-row"><span class="pname">Expected harvest</span><span class="pdate">${dayLabel(p.harvestDue)}</span></div>`:''}
+    ${p.by?`<div class="planting-row"><span class="pname">Planted by</span><span class="pdate">${escapeHTML(p.by)}</span></div>`:''}
+    ${treatmentsSectionHTML(bed,'beds')}
+    <div class="btn-row">
+      <button class="btn" id="mHarvest">Harvest this</button>
+      <button class="btn secondary" id="mEditP">Edit details</button>
+    </div>`, true);
+  document.getElementById('mBack').addEventListener('click', ()=>openBedDetail(bedId, plantingId));
+  document.getElementById('mEditDate').addEventListener('change', async ()=>{
+    p.date = document.getElementById('mEditDate').value || p.date;
+    if(p.method==='direct' && crop && crop.directSowToHarvest) p.harvestDue = addDays(p.date, crop.directSowToHarvest);
+    else if(p.method==='transplant' && crop && crop.transplantToHarvest) p.harvestDue = addDays(p.date, crop.transplantToHarvest);
+    const linkedTask = STATE.tasks.find(t=>t.linkedPlantingId===p.id && !t.done);
+    if(linkedTask && p.harvestDue){ linkedTask.dueDate = p.harvestDue; await put('tasks', linkedTask); }
+    await put('beds', bed); await afterChange(); openPlantingInfo(bedId, plantingId);
+  });
+  document.getElementById('mEditQty').addEventListener('change', async ()=>{
+    p.quantity = Math.max(1, parseInt(document.getElementById('mEditQty').value)||1);
+    await put('beds', bed); await afterChange(); openPlantingInfo(bedId, plantingId);
+  });
+  document.getElementById('mAddTreatment').addEventListener('click', ()=> openAddTreatment(bed,'beds', ()=>openPlantingInfo(bedId, plantingId), null, crop));
+  wireTreatmentRows(bed,'beds', ()=>openPlantingInfo(bedId, plantingId), crop);
+  document.getElementById('mHarvest').addEventListener('click', ()=>openHarvestModal({kind:'planting', bed, planting:p, crop}));
+  document.getElementById('mEditP').addEventListener('click', ()=>openEditPlanting(bedId, plantingId));
+}
+function openBedShapeEditor(bedId){
+  const bed = bedById(bedId);
+  let localShape = ((bed.shape && bed.shape.length>=3) ? bed.shape : [{x:0,y:0},{x:bed.w,y:0},{x:bed.w,y:bed.h},{x:0,y:bed.h}]).map(p=>({x:p.x,y:p.y}));
+  openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>Reshape ${escapeHTML(bed.name)}</h3>
+    <p class="muted" style="margin-bottom:10px;">Drag the corners to match the bed's real shape — handy for L-shaped or odd beds. Tap a corner (without dragging) to remove it.</p>
+    <div class="bed-picture-wrap"><div class="bed-picture" id="shapeCanvas"></div></div>
+    <div class="btn-row">
+      <button class="btn secondary" id="mAddShapeCorner">+ Add a corner</button>
+      <button class="btn secondary" id="mResetShape">Reset to rectangle</button>
+    </div>
+    <button class="btn big" id="mSaveShape" style="margin-top:10px;">✓ Save shape</button>`, true);
+  document.getElementById('mBack').addEventListener('click', ()=> openBedDetail(bedId));
+  let shapePPM = 1;
+  const SHAPE_PAD = 20;
+  function renderShapeCanvas(){
+    const el = document.getElementById('shapeCanvas');
+    if(!el) return;
+    const bw=bed.w, bh=bed.h;
+    const wrapEl = el.parentElement;
+    const availW = Math.max(220, (wrapEl?wrapEl.clientWidth:320) - 4);
+    const availH = Math.max(160, Math.min(window.innerHeight*0.4, 380));
+    let ppm = Math.min((availW-2*SHAPE_PAD)/bw, (availH-2*SHAPE_PAD)/bh);
+    ppm = Math.max(10, ppm);
+    shapePPM = ppm;
+    const pxW = Math.round(bw*ppm)+2*SHAPE_PAD, pxH = Math.round(bh*ppm)+2*SHAPE_PAD;
+    el.style.width = pxW+'px'; el.style.height = pxH+'px';
+    const pts = localShape.map(p=>`${Math.round(p.x*ppm+SHAPE_PAD)},${Math.round(p.y*ppm+SHAPE_PAD)}`).join(' ');
+    let html = `<svg width="${pxW}" height="${pxH}" style="position:absolute; left:0; top:0; pointer-events:none;" shape-rendering="geometricPrecision"><polygon points="${pts}" fill="${bed.color||'#7E9A6D'}55" stroke="${bed.color||'#7E9A6D'}" stroke-width="1.5" stroke-linejoin="round"></polygon></svg>`;
+    localShape.forEach((p,idx)=>{ html += `<div class="vertex-handle" data-idx="${idx}" style="left:${p.x*ppm+SHAPE_PAD}px; top:${p.y*ppm+SHAPE_PAD}px;"></div>`; });
+    el.innerHTML = html;
+    el.querySelectorAll('.vertex-handle').forEach(h=>wireShapeVertex(h));
+  }
+  function wireShapeVertex(handle){
+    blockTouchScroll(handle);
+    handle.addEventListener('pointerdown',(e)=>{
+      e.preventDefault(); e.stopPropagation();
+      try{ handle.setPointerCapture(e.pointerId); }catch(err){}
+      const idx = parseInt(handle.dataset.idx);
+      const startX=e.clientX, startY=e.clientY;
+      const startLeft=parseFloat(handle.style.left), startTop=parseFloat(handle.style.top);
+      const minPos = SHAPE_PAD, maxLeft = SHAPE_PAD+bed.w*shapePPM, maxTop = SHAPE_PAD+bed.h*shapePPM;
+      let moved=false;
+      function onMove(ev){
+        ev.preventDefault();
+        const dx=ev.clientX-startX, dy=ev.clientY-startY;
+        if(Math.abs(dx)>5||Math.abs(dy)>5) moved=true;
+        const nl = Math.min(Math.max(minPos,startLeft+dx), maxLeft);
+        const nt = Math.min(Math.max(minPos,startTop+dy), maxTop);
+        handle.style.left=nl+'px'; handle.style.top=nt+'px';
+        if(moved) localShape[idx] = {x:snapFine((nl-SHAPE_PAD)/shapePPM), y:snapFine((nt-SHAPE_PAD)/shapePPM)};
+      }
+      function onUp(){
+        document.removeEventListener('pointermove',onMove); document.removeEventListener('pointerup',onUp);
+        if(!moved && localShape.length>3){ localShape.splice(idx,1); }
+        renderShapeCanvas();
+      }
+      document.addEventListener('pointermove',onMove); document.addEventListener('pointerup',onUp,{once:true});
+    });
+  }
+  document.getElementById('mAddShapeCorner').addEventListener('click', ()=>{
+    let bestI=0, bestLen=-1;
+    for(let i=0;i<localShape.length;i++){
+      const a=localShape[i], b=localShape[(i+1)%localShape.length];
+      const len=Math.hypot(b.x-a.x,b.y-a.y);
+      if(len>bestLen){ bestLen=len; bestI=i; }
+    }
+    const a=localShape[bestI], b=localShape[(bestI+1)%localShape.length];
+    localShape.splice(bestI+1,0,{x:snapFine((a.x+b.x)/2), y:snapFine((a.y+b.y)/2)});
+    renderShapeCanvas();
+  });
+  document.getElementById('mResetShape').addEventListener('click', ()=>{
+    localShape = [{x:0,y:0},{x:bed.w,y:0},{x:bed.w,y:bed.h},{x:0,y:bed.h}];
+    renderShapeCanvas();
+  });
+  document.getElementById('mSaveShape').addEventListener('click', async ()=>{
+    bed.shape = localShape;
+    await put('beds', bed); await afterChange();
+    toast('Shape saved');
+    openBedDetail(bedId);
+  });
+  renderShapeCanvas();
+}
+function openEditPlanting(bedId, plantingId){
+  const bed = bedById(bedId);
+  const p = bed.plantings.find(pp=>pp.id===plantingId);
+  const crop = cropById(p.cropId);
+  openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>Edit planting</h3>
+    <div class="form-row"><div><label>Crop</label><input type="text" id="mCropName" list="cropSuggestions" value="${crop?escapeAttr(crop.name):''}"></div></div>
+    <div id="cropSuggestBox" style="margin:-6px 0 12px;"></div>
+    <button class="btn big" id="mSave">Save</button>`, true);
+  wireCropAutocomplete(document.getElementById('mCropName'), document.getElementById('cropSuggestBox'));
+  document.getElementById('mBack').addEventListener('click', ()=>openPlantingInfo(bedId, plantingId));
+  document.getElementById('mSave').addEventListener('click', async ()=>{
+    const name = document.getElementById('mCropName').value.trim(); if(!name) return;
+    const newCrop = await findOrCreateCrop(name);
+    p.cropId = newCrop.id;
+    if(p.method==='direct' && newCrop.directSowToHarvest) p.harvestDue = addDays(p.date, newCrop.directSowToHarvest);
+    else if(p.method==='transplant' && newCrop.transplantToHarvest) p.harvestDue = addDays(p.date, newCrop.transplantToHarvest);
+    const linkedTask = STATE.tasks.find(t=>t.linkedPlantingId===p.id);
+    if(linkedTask && p.harvestDue){ linkedTask.dueDate=p.harvestDue; linkedTask.title=`Harvest the ${newCrop.name} from ${bed.name}`; linkedTask.bedId=bed.id; await put('tasks', linkedTask); }
+    await put('beds', bed); await afterChange();
+    openPlantingInfo(bedId, plantingId);
+  });
+}
+function openAddTreatment(obj, storeKind, onDone, existingId, cropForSuggestions){
+  const existing = existingId ? (obj.treatments||[]).find(t=>t.id===existingId) : null;
+  const issues = commonIssuesFor(cropForSuggestions);
+  openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>${existing?'Edit treatment':'Add a treatment'}</h3>
+    <div class="form-row"><div><label>Type</label><select id="mType">${TREATMENT_TYPES.map(t=>`<option ${existing&&existing.type===t?'selected':''}>${t}</option>`).join('')}</select></div></div>
+    <div class="form-row"><div><label>Name / product (optional)</label><input type="text" id="mNotes" placeholder="e.g. Horse manure, Roundup" value="${existing?escapeAttr(existing.notes||''):''}"></div></div>
+    <div class="form-row"><div><label>Why (optional)</label><input type="text" id="mReason" list="reasonSuggestions" placeholder="e.g. aphids, general feed" value="${existing?escapeAttr(existing.reason||''):''}"></div></div>
+    ${issues.length?`<div class="swatch-row" id="issueChipRow" style="margin:-6px 0 12px; flex-wrap:wrap;">${issues.map(i=>`<button type="button" class="btn small secondary" data-issue="${escapeAttr(i)}">${escapeHTML(i)}</button>`).join('')}</div>`:''}
+    <div class="form-row"><div><label>Date</label><input type="date" id="mDate" value="${existing?existing.date:todayISO()}"></div></div>
+    <button class="btn big" id="mSave">Save</button>
+    ${existing?`<button class="btn danger" id="mDelTreat" style="margin-top:24px;">Remove this treatment</button>`:''}`, true);
+  document.getElementById('mBack').addEventListener('click', onDone);
+  modalContent.querySelectorAll('[data-issue]').forEach(b=>b.addEventListener('click', ()=>{ document.getElementById('mReason').value = b.dataset.issue; }));
+  document.getElementById('mSave').addEventListener('click', async ()=>{
+    const reason = document.getElementById('mReason').value.trim();
+    await rememberTreatmentReason(reason);
+    obj.treatments = obj.treatments||[];
+    const rec = {id: existing?existing.id:uid(), type:document.getElementById('mType').value, date:document.getElementById('mDate').value||todayISO(), notes:document.getElementById('mNotes').value.trim(), reason, by: existing?(existing.by||who()):who()};
+    if(existing){ const idx=obj.treatments.findIndex(t=>t.id===existing.id); obj.treatments[idx]=rec; }
+    else obj.treatments.push(rec);
+    await put(storeKind, obj); await afterChange(); onDone();
+  });
+  if(existing) document.getElementById('mDelTreat').addEventListener('click', async ()=>{
+    if(await confirmDialog('Remove this treatment?', onDone)){
+      obj.treatments = obj.treatments.filter(t=>t.id!==existing.id);
+      await put(storeKind, obj); await afterChange(); onDone();
+    }
+  });
+}
+function wireTreatmentRows(obj, storeKind, onDone, cropForSuggestions){
+  modalContent.querySelectorAll('[data-edittreatment]').forEach(el=>el.addEventListener('click', ()=> openAddTreatment(obj, storeKind, onDone, el.dataset.edittreatment, cropForSuggestions)));
+}
+function openDirectSow(bedId){
+  const bed = bedById(bedId);
+  openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>Plant something in ${escapeHTML(bed.name)}</h3>
+    <div class="form-row"><div><label>What are you planting</label><input type="text" id="mCropName" list="cropSuggestions" placeholder="e.g. Carrot" autocomplete="off"></div></div>
+    <div id="cropSuggestBox" style="margin:-6px 0 12px;"></div>
+    <button class="btn big" id="mSave" style="margin-bottom:14px;">Plant it</button>
+    <div class="form-row"><div><button type="button" class="btn small secondary" id="mLookup">🔎 Look it up online</button><div id="lookupBox"></div></div></div>
+    <div class="form-row"><div><label>How many</label><input type="number" id="mQty" value="1" min="1"></div></div>
+    ${treatmentChipsHTML()}
+    <div class="form-row" style="margin-top:14px;"><div><label>Date</label><input type="date" id="mDate" value="${todayISO()}"></div></div>`, true);
+  wireCropAutocomplete(document.getElementById('mCropName'), document.getElementById('cropSuggestBox'));
+  const getTags = wireTreatmentChips(modalContent);
+  document.getElementById('mBack').addEventListener('click', ()=>openBedDetail(bedId));
+  document.getElementById('mLookup').addEventListener('click', ()=> lookupCropOnline(document.getElementById('mCropName').value.trim(), 'lookupBox'));
+  document.getElementById('mSave').addEventListener('click', async ()=>{
+    const name = document.getElementById('mCropName').value.trim(); if(!name) return;
+    const crop = await findOrCreateCrop(name);
+    const date = document.getElementById('mDate').value || todayISO();
+    const qty = parseInt(document.getElementById('mQty').value)||1;
+    const planting = {id:uid(), cropId:crop.id, date, quantity:qty, method:'direct', active:true, by:who()};
+    Object.assign(planting, nextFreeSlot(bed.w, bed.h, (bed.plantings||[]).filter(p=>p.active), Math.min(bed.w/2,1.5), Math.min(bed.h/3,0.6)));
+    if(crop.directSowToHarvest){
+      planting.harvestDue = addDays(date, crop.directSowToHarvest);
+      await put('tasks', {id:uid(), title:`Harvest the ${crop.name} from ${bed.name}`, dueDate:planting.harvestDue, recurrence:'none', done:false, doneDates:[], linkedPlantingId:planting.id, bedId:bed.id});
+    }
+    bed.plantings = bed.plantings||[]; bed.plantings.push(planting);
+    const newTags = getTags();
+    if(newTags.length){ bed.treatments = (bed.treatments||[]).concat(newTags); }
+    await put('beds', bed); await afterChange();
+    toast(`Planted in ${bed.name}`);
+    openDirectSow(bedId);
+  });
+}
+
+/* ---- Tree detail ---- */
+function openTreeDetail(featId){
+  const feat = featureById(featId);
+  if(!feat){ goHome(); return; }
+  const crop = feat.treeCropId ? cropById(feat.treeCropId) : null;
+  const history = STATE.harvests.filter(h=>h.treeId===feat.id).sort((a,b)=>b.harvestDate.localeCompare(a.harvestDate)).slice(0,10);
+  const histHTML = history.map(h=>`<div class="planting-row"><span class="pname">${dayLabel(h.harvestDate)}</span><span class="pdate">${h.rating}/10${h.by?' &middot; '+escapeHTML(h.by):''}</span></div>`).join('') || '<p class="muted">No harvests logged yet.</p>';
+  openModal(`<h3>🌳 ${escapeHTML(feat.label||'Fruit tree')}</h3>
+    ${stampHTML(feat)}
+    <p class="muted">${crop?('Variety: '+escapeHTML(crop.name)):'No variety set yet.'}</p>
+    ${treatmentsSectionHTML(feat,'features')}
+    <div class="row-heading" style="margin-top:14px;">Past harvests</div>
+    ${histHTML}
+    <div class="btn-row">
+      <button class="btn" id="mHarvest">Log a harvest</button>
+      <button class="btn secondary" id="mVariety">${crop?'Change variety':'Set variety'}</button>
+      <button class="btn secondary" id="mEdit">Edit tree</button>
+    </div>`);
+  document.getElementById('mAddTreatment').addEventListener('click', ()=> openAddTreatment(feat,'features', ()=>openTreeDetail(featId), null, crop));
+  wireTreatmentRows(feat,'features', ()=>openTreeDetail(featId), crop);
+  document.getElementById('mHarvest').addEventListener('click', ()=> openHarvestModal({kind:'tree', feature:feat, crop}));
+  document.getElementById('mVariety').addEventListener('click', ()=>{
+    openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>What variety?</h3>
+      <div class="form-row"><div><input type="text" id="mCropName" list="cropSuggestions" placeholder="e.g. Apple - Bramley" value="${crop?escapeAttr(crop.name):''}"></div></div>
+      <button class="btn big" id="mSave">Save</button>`);
+    document.getElementById('mBack').addEventListener('click', ()=>openTreeDetail(featId));
+    document.getElementById('mSave').addEventListener('click', async ()=>{
+      const name = document.getElementById('mCropName').value.trim();
+      if(name){ const c = await findOrCreateCrop(name); feat.treeCropId = c.id; await put('features',feat); }
+      await afterChange(); openTreeDetail(featId);
+    });
+  });
+  document.getElementById('mEdit').addEventListener('click', ()=>{
+    requireUnlock(()=>{
+    openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>Edit tree</h3>
+      <div class="form-row"><div><label>Name</label><input type="text" id="mName" value="${escapeAttr(feat.label||'')}"></div></div>
+      ${lockToggleHTML(feat)}
+      <button class="btn big" id="mSave" style="margin-top:10px;">Save</button>
+      <button class="btn danger" id="mDel" style="margin-top:24px;">Remove this tree from the map</button>`, true);
+    document.getElementById('mBack').addEventListener('click', ()=>openTreeDetail(featId));
+    document.getElementById('mSave').addEventListener('click', async ()=>{
+      feat.label=document.getElementById('mName').value.trim()||feat.label;
+      feat.locked = document.getElementById('mLocked').checked;
+      await put('features',feat); await afterChange(); openTreeDetail(featId);
+    });
+    document.getElementById('mDel').addEventListener('click', async ()=>{
+      if(await confirmDialog('Remove this tree from the map? Its harvest history stays in the basket log.', ()=>openTreeDetail(featId))){ await del('features',feat.id); await afterChange(); closeModal(); }
+    });
+    });
+  });
+}
+
+/* ---- Greenhouse / Polytunnel structure detail (with optional tiers) ---- */
+function getTiers(feat){
+  if(feat.tiers && feat.tiers.length) return feat.tiers;
+  return [{id:'ground', label:'Ground level', w:feat.w, h:feat.h}];
+}
+function openStructureDetail(feat, highlightTrayId){
+  if(!feat){ goHome(); return; }
+  const info = FEATURE_TYPES[feat.type], locName = info.label;
+  const tiers = getTiers(feat);
+  const neverOpened = !activeTier[feat.id] || !tiers.find(t=>t.id===activeTier[feat.id]);
+  if(neverOpened) activeTier[feat.id] = tiers[0].id;
+  if(neverOpened && tiers.length>1 && !autoJumpedTiers.has(feat.id)){
+    autoJumpedTiers.add(feat.id);
+    const hasGrowing = (tid)=> STATE.trays.some(t=>t.location===locName && (t.tierId||tiers[0].id)===tid && t.status==='growing');
+    if(!hasGrowing(activeTier[feat.id])){
+      const betterTier = tiers.find(t=>hasGrowing(t.id));
+      if(betterTier) activeTier[feat.id] = betterTier.id;
+    }
+  }
+  const tierId = activeTier[feat.id];
+  const tier = tiers.find(t=>t.id===tierId) || tiers[0];
+  const allTrays = STATE.trays.filter(t=>t.location===locName && (t.status==='growing'||t.status==='empty') && (t.tierId||tiers[0].id)===tierId);
+
+  const tierRow = tiers.length>1 ? `<div class="tier-row">${tiers.map(t=>`<button class="tier-pill ${t.id===tierId?'active':''}" data-tier="${t.id}">${escapeHTML(t.label)}</button>`).join('')}<button class="tier-pill" id="btnAddTier">+ Tier</button></div>` : `<button class="btn small secondary" id="btnAddTier" style="margin-bottom:10px;">+ Add a tier / shelf</button>`;
+
+  const sortedForList = allTrays.slice().sort((a,b)=>{
+    const aEmpty = a.status==='empty', bEmpty = b.status==='empty';
+    if(aEmpty !== bEmpty) return aEmpty ? 1 : -1;
+    if(aEmpty) return 0;
+    const ca = cropById(a.cropId), cb = cropById(b.cropId);
+    return (ca?cropTypeKey(ca):'').localeCompare(cb?cropTypeKey(cb):'');
+  });
+  const rows = sortedForList.map(t=>{
+    const c = cropById(t.cropId);
+    const potOnDue = c && c.sowToPotOn ? addDays(t.sownDate, c.sowToPotOn) : null;
+    if(t.status==='empty'){
+      return `<div class="planting-row"><span class="pname" style="opacity:0.6;">Empty tray</span>
+        <button class="btn small danger" data-deltray="${t.id}">Delete</button>
+        <button class="btn small" data-sowinto="${t.id}">Sow into it</button></div>`;
+    }
+    return `<div class="planting-row"><span class="fam-dot" style="background:${c?cropColor(c):'#8a8a7a'};"></span>
+      <span class="pname" style="cursor:pointer;" data-info="${t.id}">${(c && c.name)?escapeHTML(c.name):'Something'}${t.quantity?' &middot; '+t.quantity+' left':''}</span>
+      <span class="pdate">${potOnDue?('plant out '+dayLabel(potOnDue)):''}</span>
+      <button class="btn small danger" data-deltray="${t.id}">Delete</button>
+      <button class="btn small" data-move="${t.id}">Plant out</button></div>`;
+  }).join('') || '<p class="muted">Nothing here yet.</p>';
+
+  openModal(`<h3>${info.icon} ${escapeHTML(feat.label||info.label)}</h3>
+    ${stampHTML(feat)}
+    ${tierRow}
+    <div class="bed-picture-wrap"><div class="bed-picture" id="bedPic"></div></div>
+    <p class="picture-help">Drag a tray's box to where it sits, and its corner to resize it. Tap it for details.</p>
+    ${rows}
+    <div class="btn-row"><button class="btn" id="mSow">+ Sow something here</button><button class="btn secondary" id="mAddPot">+ Add a tray/pot</button><button class="btn secondary" id="mEdit">Edit ${escapeHTML(info.label.toLowerCase())}</button></div>`, true);
+
+  document.getElementById('mAddPot').addEventListener('click', ()=> openAddContainer(feat, tierId));
+
+  renderPictureCanvas('bedPic', tier, allTrays,
+    t=>{ const c=cropById(t.cropId); return t.status==='empty' ? 'Empty' : ((c && c.name) ? c.name : '?'); },
+    t=>{ const c=cropById(t.cropId); return c?c.family:'Other'; },
+    async (tray, vals)=>{ Object.assign(tray, vals); await put('trays', tray); if(supa) schedulePush(); },
+    (tray)=> tray.status==='empty' ? openSowIntoContainer(tray.id) : openTrayInfo(tray.id),
+    highlightTrayId,
+    (t)=> t.status==='empty',
+    t=>{ const c=cropById(t.cropId); return c?cropColor(c):'#8a8a7a'; }
+  );
+
+  if(tiers.length>1) modalContent.querySelectorAll('[data-tier]').forEach(b=>b.addEventListener('click', ()=>{ activeTier[feat.id]=b.dataset.tier; openStructureDetail(feat, highlightTrayId); }));
+  document.getElementById('btnAddTier').addEventListener('click', ()=>{
+    openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>Add a tier</h3>
+      <div class="form-row"><div><label>Label</label><input type="text" id="mLabel" placeholder="e.g. Middle shelf"></div></div>
+      <div class="form-row"><div><label>Width (m)</label><input type="number" step="0.1" id="mW" value="${feat.w}"></div><div><label>Depth (m)</label><input type="number" step="0.1" id="mH" value="${feat.h}"></div></div>
+      <button class="btn big" id="mSave">Add tier</button>`, true);
+    document.getElementById('mBack').addEventListener('click', ()=>openStructureDetail(feat));
+    document.getElementById('mSave').addEventListener('click', async ()=>{
+      const label = document.getElementById('mLabel').value.trim() || `Tier ${tiers.length+1}`;
+      const w = parseFloat(document.getElementById('mW').value)||feat.w;
+      const h = parseFloat(document.getElementById('mH').value)||feat.h;
+      const newTiers = getTiers(feat).slice();
+      newTiers.push({id:uid(), label, w, h});
+      feat.tiers = newTiers;
+      await put('features', feat); await afterChange();
+      activeTier[feat.id] = newTiers[newTiers.length-1].id;
+      openStructureDetail(feat);
+    });
+  });
+  modalContent.querySelectorAll('[data-move]').forEach(b=>b.addEventListener('click', ()=>{
+    const t = STATE.trays.find(tt=>tt.id===b.dataset.move);
+    startPlantOutFlow(t, cropById(t.cropId));
+  }));
+  modalContent.querySelectorAll('[data-info]').forEach(b=>b.addEventListener('click', ()=> openTrayInfo(b.dataset.info)));
+  modalContent.querySelectorAll('[data-sowinto]').forEach(b=>b.addEventListener('click', ()=> openSowIntoContainer(b.dataset.sowinto)));
+  modalContent.querySelectorAll('[data-deltray]').forEach(b=>b.addEventListener('click', ()=> deleteTray(b.dataset.deltray, ()=>openStructureDetail(feat))));
+  document.getElementById('mSow').addEventListener('click', ()=> openSowTray(locName, feat, tierId));
+  document.getElementById('mEdit').addEventListener('click', ()=>{
+    requireUnlock(()=>{
+    openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>Edit ${escapeHTML(info.label)}</h3>
+      <div class="form-row"><div><label>Label</label><input type="text" id="mLabel" value="${escapeAttr(feat.label||info.label)}"></div></div>
+      <div class="form-row"><div><label>Width (m)</label><input type="number" step="0.1" id="mW" value="${feat.w}"></div><div><label>Depth (m)</label><input type="number" step="0.1" id="mH" value="${feat.h}"></div></div>
+      ${lockToggleHTML(feat)}
+      <button class="btn big" id="mSave">Save</button>
+      <button class="btn danger" id="mDel" style="margin-top:24px;">Remove this ${escapeHTML(info.label.toLowerCase())} from the map</button>`, true);
+    document.getElementById('mBack').addEventListener('click', ()=>openStructureDetail(feat));
+    document.getElementById('mSave').addEventListener('click', async ()=>{
+      feat.label = document.getElementById('mLabel').value.trim()||info.label;
+      feat.w = Math.max(0.3, snapMap(parseFloat(document.getElementById('mW').value)||feat.w));
+      feat.h = Math.max(0.3, snapMap(parseFloat(document.getElementById('mH').value)||feat.h));
+      feat.locked = document.getElementById('mLocked').checked;
+      await put('features',feat); await afterChange(); openStructureDetail(feat);
+    });
+    document.getElementById('mDel').addEventListener('click', async ()=>{
+      if(await confirmDialog(`Remove this ${info.label.toLowerCase()} from your map?`, ()=>openStructureDetail(feat))){ await del('features',feat.id); await afterChange(); closeModal(); }
+    });
+    });
+  });
+}
+function openTrayInfo(trayId){
+  const tray = STATE.trays.find(t=>t.id===trayId); if(!tray) return;
+  const crop = cropById(tray.cropId);
+  const potOnDue = crop && crop.sowToPotOn ? addDays(tray.sownDate, crop.sowToPotOn) : null;
+  const feat = STATE.features.find(f=>FEATURE_TYPES[f.type] && FEATURE_TYPES[f.type].label===tray.location);
+  const multiTier = feat && getTiers(feat).length>1;
+  openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>${(crop && crop.name)?escapeHTML(crop.name):'Tray'}</h3>
+    <div class="planting-row"><span class="pname">Planted</span><input type="date" class="inline-edit" id="mEditDate" value="${tray.sownDate}"></div>
+    <div class="planting-row"><span class="pname">Where</span><span class="pdate">${escapeHTML(tray.location)}</span></div>
+    <div class="planting-row"><span class="pname">How many left</span><input type="number" class="inline-edit" id="mEditQty" value="${tray.quantity||1}" min="1"></div>
+    ${potOnDue?`<div class="planting-row"><span class="pname">Plant out due</span><span class="pdate">${dayLabel(potOnDue)}</span></div>`:''}
+    ${tray.createdBy?`<div class="planting-row"><span class="pname">Planted by</span><span class="pdate">${escapeHTML(tray.createdBy)}</span></div>`:''}
+    ${tray.sizeLocked?`<p class="tiny-muted">🔒 This tray's size is fixed so you don't nudge it by accident. You can still drag it to reposition.</p>`:''}
+    ${treatmentsSectionHTML(tray,'trays')}
+    <div class="btn-row">
+      <button class="btn" id="mMove">Plant it out</button>
+      <button class="btn secondary" id="mHarvest">Harvest straight from here</button>
+      ${multiTier?'<button class="btn secondary" id="mChangeTier">Change tier</button>':''}
+      ${tray.sizeLocked?'<button class="btn secondary" id="mChangeSize">Change size</button>':''}
+      <button class="btn danger" id="mDelTray">Delete this tray</button>
+    </div>`, true);
+  document.getElementById('mBack').addEventListener('click', ()=> feat ? openStructureDetail(feat) : goHome());
+  document.getElementById('mEditDate').addEventListener('change', async ()=>{
+    tray.sownDate = document.getElementById('mEditDate').value || tray.sownDate;
+    const linkedTask = STATE.tasks.find(t=>t.linkedTrayId===tray.id && !t.done);
+    if(linkedTask && crop && crop.sowToPotOn){ linkedTask.dueDate = addDays(tray.sownDate, crop.sowToPotOn); await put('tasks', linkedTask); }
+    await put('trays', tray); await afterChange(); openTrayInfo(trayId);
+  });
+  document.getElementById('mEditQty').addEventListener('change', async ()=>{
+    tray.quantity = Math.max(1, parseInt(document.getElementById('mEditQty').value)||1);
+    await put('trays', tray); await afterChange(); openTrayInfo(trayId);
+  });
+  document.getElementById('mAddTreatment').addEventListener('click', ()=> openAddTreatment(tray,'trays', ()=>openTrayInfo(trayId), null, crop));
+  wireTreatmentRows(tray,'trays', ()=>openTrayInfo(trayId), crop);
+  document.getElementById('mMove').addEventListener('click', ()=> startPlantOutFlow(tray, crop));
+  document.getElementById('mHarvest').addEventListener('click', ()=> openHarvestModal({kind:'tray', tray, crop}));
+  document.getElementById('mDelTray').addEventListener('click', ()=> deleteTray(trayId, feat ? ()=>openStructureDetail(feat) : goHome));
+  if(multiTier) document.getElementById('mChangeTier').addEventListener('click', ()=> openChangeTier(trayId));
+  if(tray.sizeLocked) document.getElementById('mChangeSize').addEventListener('click', ()=> openChangeContainerSize(trayId));
+}
+function openChangeTier(trayId){
+  const tray = STATE.trays.find(t=>t.id===trayId); if(!tray) return;
+  const feat = STATE.features.find(f=>FEATURE_TYPES[f.type] && FEATURE_TYPES[f.type].label===tray.location);
+  if(!feat) return;
+  const tiers = getTiers(feat);
+  const curTierId = tray.tierId || tiers[0].id;
+  const opts = tiers.map(t=>`<button class="type-opt" data-tier="${t.id}" style="${t.id===curTierId?'box-shadow:0 0 0 3px var(--leaf);':''}"><span class="icon">🗄️</span>${escapeHTML(t.label)}</button>`).join('');
+  openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>Move to which tier?</h3><div class="type-grid">${opts}</div>`);
+  document.getElementById('mBack').addEventListener('click', ()=> openTrayInfo(trayId));
+  modalContent.querySelectorAll('[data-tier]').forEach(b=>b.addEventListener('click', async ()=>{
+    const newTierId = b.dataset.tier;
+    if(newTierId===curTierId){ openTrayInfo(trayId); return; }
+    const newTier = tiers.find(t=>t.id===newTierId);
+    const occupied = STATE.trays.filter(t=>t.id!==tray.id && t.location===tray.location && (t.tierId||tiers[0].id)===newTierId && (t.status==='growing'||t.status==='empty'));
+    const size = {w:Math.min(tray.pw||1, newTier.w), h:Math.min(tray.ph||0.5, newTier.h)};
+    const slot = nextFreeSlot(newTier.w, newTier.h, occupied, size.w, size.h);
+    tray.tierId = newTierId; tray.px=slot.px; tray.py=slot.py; tray.pw=slot.pw; tray.ph=slot.ph;
+    await put('trays', tray); await afterChange();
+    toast(`Moved to ${newTier.label}`);
+    openTrayInfo(trayId);
+  }));
+}
+function openChangeContainerSize(trayId){
+  const opts = allContainerSizeOptions().map(p=>`<button class="type-opt" data-w="${p.w}" data-h="${p.h}"><span class="icon">🪴</span>${escapeHTML(p.label)}</button>`).join('')
+    + `<button class="type-opt" id="mCustomSize2"><span class="icon">📐</span>Custom size</button>`;
+  openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>Change tray size</h3><div class="type-grid">${opts}</div>`);
+  document.getElementById('mBack').addEventListener('click', ()=> openTrayInfo(trayId));
+  modalContent.querySelectorAll('[data-w]').forEach(b=>b.addEventListener('click', async ()=>{
+    const tray = STATE.trays.find(t=>t.id===trayId);
+    tray.pw = parseFloat(b.dataset.w); tray.ph = parseFloat(b.dataset.h);
+    lastContainerSize = {w:tray.pw, h:tray.ph};
+    await put('trays', tray); await afterChange(); openTrayInfo(trayId);
+  }));
+  document.getElementById('mCustomSize2').addEventListener('click', ()=>{
+    openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>Custom size</h3>
+      <div class="form-row"><div><label>Width (m)</label><input type="number" step="0.01" id="mW" value="0.3"></div><div><label>Depth (m)</label><input type="number" step="0.01" id="mH" value="0.2"></div></div>
+      <button class="btn big" id="mNext">Save size</button>`);
+    document.getElementById('mBack').addEventListener('click', ()=> openChangeContainerSize(trayId));
+    document.getElementById('mNext').addEventListener('click', async ()=>{
+      const w = parseFloat(document.getElementById('mW').value)||0.3, h = parseFloat(document.getElementById('mH').value)||0.2;
+      await rememberContainerSize(w, h);
+      const tray = STATE.trays.find(t=>t.id===trayId);
+      tray.pw = w; tray.ph = h;
+      lastContainerSize = {w:tray.pw, h:tray.ph};
+      await put('trays', tray); await afterChange(); openTrayInfo(trayId);
+    });
+  });
+}
+const CONTAINER_PRESETS = [
+  {label:'Small pot', w:0.12, h:0.12},
+  {label:'Large pot', w:0.25, h:0.25},
+  {label:'Seed tray', w:0.38, h:0.24},
+  {label:'Modular tray', w:0.35, h:0.22},
+];
+let lastContainerSize = null;
+async function rememberTreatmentReason(reason){
+  if(!reason) return;
+  const list = STATE.settings.treatmentReasons || [];
+  if(list.some(r=>r.toLowerCase()===reason.toLowerCase())) return;
+  const updated = [...list, reason];
+  await setMeta('treatmentReasons', updated);
+  STATE.settings.treatmentReasons = updated;
+}
+async function rememberContainerSize(w,h){
+  const list = STATE.settings.customContainerSizes || [];
+  const already = list.some(s=>Math.abs(s.w-w)<0.005 && Math.abs(s.h-h)<0.005) || CONTAINER_PRESETS.some(p=>Math.abs(p.w-w)<0.005 && Math.abs(p.h-h)<0.005);
+  if(already) return;
+  const label = `${Math.round(w*100)}\u00D7${Math.round(h*100)}cm`;
+  const updated = [...list, {label, w, h}];
+  await setMeta('customContainerSizes', updated);
+  STATE.settings.customContainerSizes = updated;
+}
+function allContainerSizeOptions(){
+  return [...CONTAINER_PRESETS, ...(STATE.settings.customContainerSizes||[])];
+}
+function openAddContainer(feat, tierId){
+  const opts = allContainerSizeOptions().map(p=>`<button class="type-opt" data-w="${p.w}" data-h="${p.h}"><span class="icon">🪴</span>${escapeHTML(p.label)}</button>`).join('')
+    + `<button class="type-opt" id="mRepeatLast" ${lastContainerSize?'':'style="display:none;"'}><span class="icon">🔁</span>Same as last</button>`
+    + `<button class="type-opt" id="mCustomSize"><span class="icon">📐</span>Custom size</button>`;
+  openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>What size tray or pot?</h3><div class="type-grid">${opts}</div>`);
+  document.getElementById('mBack').addEventListener('click', ()=> openStructureDetail(feat));
+  modalContent.querySelectorAll('[data-w]').forEach(b=>b.addEventListener('click', ()=> createEmptyContainer(feat, tierId, parseFloat(b.dataset.w), parseFloat(b.dataset.h))));
+  const repeatBtn = document.getElementById('mRepeatLast');
+  if(repeatBtn) repeatBtn.addEventListener('click', ()=>{ if(lastContainerSize) createEmptyContainer(feat, tierId, lastContainerSize.w, lastContainerSize.h); });
+  document.getElementById('mCustomSize').addEventListener('click', ()=>{
+    openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>Custom size</h3>
+      <div class="form-row"><div><label>Width (m)</label><input type="number" step="0.01" id="mW" value="0.3"></div><div><label>Depth (m)</label><input type="number" step="0.01" id="mH" value="0.2"></div></div>
+      <button class="btn big" id="mNext">Add it</button>`);
+    document.getElementById('mBack').addEventListener('click', ()=> openAddContainer(feat, tierId));
+    document.getElementById('mNext').addEventListener('click', async ()=>{
+      const w = parseFloat(document.getElementById('mW').value)||0.3, h = parseFloat(document.getElementById('mH').value)||0.2;
+      await rememberContainerSize(w, h);
+      createEmptyContainer(feat, tierId, w, h);
+    });
+  });
+}
+async function createEmptyContainer(feat, tierId, w, h){
+  lastContainerSize = {w,h};
+  const info = FEATURE_TYPES[feat.type];
+  const tiers = getTiers(feat);
+  const tier = tiers.find(t=>t.id===tierId) || tiers[0];
+  const occupied = STATE.trays.filter(t=>t.location===info.label && (t.tierId||tiers[0].id)===tier.id && (t.status==='growing'||t.status==='empty'));
+  const slot = nextFreeSlot(tier.w, tier.h, occupied, w, h);
+  const tray = {id:uid(), location:info.label, status:'empty', quantity:0, tierId:tier.id, createdBy:who(), px:slot.px, py:slot.py, pw:slot.pw, ph:slot.ph, sizeLocked:true};
+  await put('trays', tray);
+  await afterChange();
+  openModal(`<h3>Tray added</h3><div class="btn-row">
+    <button class="btn" id="mSowNow">Sow something in it now</button>
+    <button class="btn secondary" id="mAnother">Add another the same size</button>
+    <button class="btn secondary" id="mDone">Done for now</button></div>`);
+  document.getElementById('mSowNow').addEventListener('click', ()=> openSowIntoContainer(tray.id));
+  document.getElementById('mAnother').addEventListener('click', ()=> createEmptyContainer(feat, tierId, w, h));
+  document.getElementById('mDone').addEventListener('click', ()=> openStructureDetail(feat));
+}
+async function deleteTray(trayId, onDone){
+  const tray = STATE.trays.find(t=>t.id===trayId); if(!tray) return;
+  const isEmpty = tray.status==='empty';
+  const msg = isEmpty ? 'Delete this empty tray?' : "Delete this tray? Whatever's growing in it will be lost — harvest it first if you want to keep a record.";
+  if(await confirmDialog(msg)){
+    await del('trays', trayId);
+    const relatedTask = STATE.tasks.find(t=>t.linkedTrayId===trayId && !t.done);
+    if(relatedTask){ relatedTask.done=true; await put('tasks', relatedTask); }
+    await afterChange();
+    toast('Tray deleted');
+    if(onDone) onDone();
+  }
+}
+function openSowIntoContainer(trayId){
+  const tray = STATE.trays.find(t=>t.id===trayId); if(!tray) return;
+  const feat = STATE.features.find(f=>FEATURE_TYPES[f.type] && FEATURE_TYPES[f.type].label===tray.location);
+  openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>Sow into this tray</h3>
+    <div class="form-row"><div><label>What are you sowing</label><input type="text" id="mCropName" list="cropSuggestions" placeholder="e.g. Lettuce" autocomplete="off"></div></div>
+    <div id="cropSuggestBox" style="margin:-6px 0 12px;"></div>
+    <button class="btn big" id="mSave" style="margin-bottom:14px;">Sow It</button>
+    <div class="form-row"><div><button type="button" class="btn small secondary" id="mLookup">🔎 Look it up online</button><div id="lookupBox"></div></div></div>
+    <div class="form-row"><div><label>How many</label><input type="number" id="mQty" value="1" min="1"></div></div>
+    ${treatmentChipsHTML()}
+    <div class="form-row" style="margin-top:14px;"><div><label>Sow date</label><input type="date" id="mDate" value="${todayISO()}"></div></div>`, true);
+  document.getElementById('mBack').addEventListener('click', ()=> feat ? openStructureDetail(feat) : goHome());
+  wireCropAutocomplete(document.getElementById('mCropName'), document.getElementById('cropSuggestBox'));
+  const getTags = wireTreatmentChips(modalContent);
+  document.getElementById('mLookup').addEventListener('click', ()=> lookupCropOnline(document.getElementById('mCropName').value.trim(), 'lookupBox'));
+  document.getElementById('mSave').addEventListener('click', async ()=>{
+    const name = document.getElementById('mCropName').value.trim(); if(!name) return;
+    const crop = await findOrCreateCrop(name);
+    const date = document.getElementById('mDate').value || todayISO();
+    tray.cropId = crop.id; tray.sownDate = date; tray.quantity = parseInt(document.getElementById('mQty').value)||1; tray.status='growing'; tray.createdBy = tray.createdBy || who();
+    const newTags = getTags();
+    if(newTags.length){ tray.treatments = (tray.treatments||[]).concat(newTags); }
+    await put('trays', tray);
+    if(crop.sowToPotOn){
+      const due = addDays(date, crop.sowToPotOn);
+      await put('tasks', {id:uid(), title:`Plant out the ${crop.name} from the ${tray.location}`, dueDate:due, recurrence:'none', done:false, doneDates:[], linkedTrayId:tray.id});
+    }
+    await afterChange();
+    if(feat) openStructureDetail(feat); else closeModal();
+    toast('Sown');
+  });
+}
+function openSowTray(presetLocation, feat, tierId){
+  openModal(`${feat?'<button class="back-link" id="mBack">&larr; Back</button>':''}
+    <h3>Sow something${presetLocation?(' in the '+presetLocation.toLowerCase()):''}</h3>
+    <div class="form-row"><div><label>What are you sowing</label><input type="text" id="mCropName" list="cropSuggestions" placeholder="e.g. Potato Maris Piper" autocomplete="off"></div></div>
+    <div id="cropSuggestBox" style="margin:-6px 0 12px;"></div>
+    ${presetLocation ? '' : `<div class="form-row"><div><label>Where</label><select id="mLoc"><option>Greenhouse</option><option>Polytunnel</option><option>Windowsill</option></select></div></div>`}
+    <button class="btn big" id="mSave" style="margin-bottom:14px;">Sow It</button>
+    <div class="form-row"><div><button type="button" class="btn small secondary" id="mLookup">🔎 Look it up online</button><div id="lookupBox"></div></div></div>
+    <div class="form-row"><div><label>How many</label><input type="number" id="mQty" value="1" min="1"></div></div>
+    ${treatmentChipsHTML()}
+    <div class="form-row" style="margin-top:14px;"><div><label>Sow date</label><input type="date" id="mDate" value="${todayISO()}"></div></div>`, true);
+  if(feat) document.getElementById('mBack').addEventListener('click', ()=>openStructureDetail(feat));
+  wireCropAutocomplete(document.getElementById('mCropName'), document.getElementById('cropSuggestBox'));
+  const getTags = wireTreatmentChips(modalContent);
+  document.getElementById('mLookup').addEventListener('click', ()=> lookupCropOnline(document.getElementById('mCropName').value.trim(), 'lookupBox'));
+  document.getElementById('mSave').addEventListener('click', async ()=>{
+    const name = document.getElementById('mCropName').value.trim(); if(!name) return;
+    const crop = await findOrCreateCrop(name);
+    const date = document.getElementById('mDate').value || todayISO();
+    const location = presetLocation || document.getElementById('mLoc').value;
+    const tray = {id:uid(), cropId:crop.id, location, quantity:parseInt(document.getElementById('mQty').value)||1, sownDate:date, status:'growing', tierId:tierId||undefined, createdBy:who()};
+    const newTags = getTags();
+    if(newTags.length) tray.treatments = newTags;
+    const targetFeat = feat || STATE.features.find(f=>FEATURE_TYPES[f.type] && FEATURE_TYPES[f.type].label===location);
+    if(targetFeat){
+      const tiers = getTiers(targetFeat);
+      const tier = tiers.find(t=>t.id===(tierId||tiers[0].id)) || tiers[0];
+      const occupied = STATE.trays.filter(t=>t.location===location && (t.tierId||tiers[0].id)===tier.id && (t.status==='growing'||t.status==='empty'));
+      Object.assign(tray, nextFreeSlot(tier.w, tier.h, occupied));
+    }
+    await put('trays', tray);
+    if(crop.sowToPotOn){
+      const due = addDays(date, crop.sowToPotOn);
+      await put('tasks', {id:uid(), title:`Plant out the ${crop.name} from the ${location}`, dueDate:due, recurrence:'none', done:false, doneDates:[], linkedTrayId:tray.id});
+    }
+    await afterChange();
+    toast('Sown');
+    if(feat) openStructureDetail(feat); else openSowTray(presetLocation, feat, tierId);
+  });
+}
+
+/* ---- Harvest ---- */
+function harvestBackDestination(ctx){
+  if(ctx.kind==='tray'){
+    const feat = STATE.features.find(f=>FEATURE_TYPES[f.type] && FEATURE_TYPES[f.type].label===ctx.tray.location);
+    return feat ? ()=>openStructureDetail(feat) : goHome;
+  }
+  if(ctx.kind==='planting') return ()=>openBedDetail(ctx.bed.id);
+  if(ctx.kind==='tree') return ()=>openTreeDetail(ctx.feature.id);
+  return goHome;
+}
+function openHarvestModal(ctx){
+  const crop = ctx.crop;
+  const backTo = harvestBackDestination(ctx);
+  const bedTreatments = ctx.kind==='planting' ? (ctx.bed.treatments||[]) : (ctx.kind==='tree' ? (ctx.feature.treatments||[]) : (ctx.kind==='tray' ? (ctx.tray.treatments||[]) : []));
+  const treatmentsHTML = bedTreatments.length ? bedTreatments.slice().reverse().map(t=>`<div class="muted" style="font-size:13px;">${escapeHTML(t.type)}${t.notes?': '+escapeHTML(t.notes):''} &middot; ${dayLabel(t.date)}</div>`).join('') : '<p class="muted" style="font-size:13px;">Nothing logged.</p>';
+  const wx = getTodayWeatherSnapshot();
+  openModal(`<button class="back-link" id="mBack">&larr; Back</button><h3>🧺 Harvest ${escapeHTML(crop?crop.name:'this')}</h3>
+    <label>How did it turn out?</label>
+    <div class="rating-readout" id="ratingReadout">Tap the bar below</div>
+    <div class="rating-bar" id="ratingBar">${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="rate-seg" data-r="${n}"></button>`).join('')}</div>
+    <div class="form-row" style="margin-top:14px;"><div><label>Notes (optional)</label><textarea id="mNotes" rows="2" placeholder="e.g. small but tasty"></textarea></div></div>
+    <div style="margin:8px 0;"><strong style="font-size:13.5px;">Feed &amp; treatments used:</strong>${treatmentsHTML}</div>
+    <p class="muted" style="margin-bottom:10px;">${wx ? `Weather today: ${wx.icon} ${wx.tempMax}&deg;/${wx.tempMin}&deg;, ${wx.rain}mm rain` : "Weather not recorded (you're likely offline)."}</p>
+    <button class="btn big" id="mSave" disabled>Save Harvest</button>`);
+  document.getElementById('mBack').addEventListener('click', backTo);
+  let chosen=null;
+  modalContent.querySelectorAll('.rate-seg').forEach(b=>b.addEventListener('click', ()=>{
+    chosen=parseInt(b.dataset.r);
+    modalContent.querySelectorAll('.rate-seg').forEach(x=>x.classList.toggle('filled', parseInt(x.dataset.r)<=chosen));
+    document.getElementById('ratingReadout').textContent = (chosen*10)+'%';
+    document.getElementById('mSave').disabled=false;
+  }));
+  document.getElementById('mSave').addEventListener('click', async ()=>{
+    const notes = document.getElementById('mNotes').value.trim();
+    let plantedDate=null, method=null, area=null;
+    if(ctx.kind==='tray'){
+      plantedDate = ctx.tray.sownDate;
+      method = `Sown in the ${ctx.tray.location}`;
+      if(ctx.tray.pw && ctx.tray.ph) area = +(ctx.tray.pw*ctx.tray.ph).toFixed(2);
+    } else if(ctx.kind==='planting'){
+      plantedDate = ctx.planting.date;
+      method = ctx.planting.method==='direct' ? 'Direct sown' : `Transplanted from ${ctx.planting.fromLocation||'under cover'}`;
+      if(ctx.planting.pw && ctx.planting.ph) area = +(ctx.planting.pw*ctx.planting.ph).toFixed(2);
+    }
+    const weatherSummary = await fetchGrowingWeatherSummary(plantedDate, todayISO());
+    const rec = { id:uid(), cropId:crop?crop.id:null, cropName:crop?crop.name:'Unknown', family:crop?crop.family:'Other',
+      source:ctx.kind, locationLabel: ctx.kind==='tray'?ctx.tray.location:(ctx.kind==='tree'?(ctx.feature.label||'Tree'):ctx.bed.name),
+      treeId: ctx.kind==='tree'?ctx.feature.id:undefined,
+      plantedDate, method, area, weatherSummary,
+      harvestDate: todayISO(), rating:chosen, notes, treatments:bedTreatments, weather:wx, by:who() };
+    await put('harvests', rec);
+    if(ctx.kind==='tray'){
+      const relatedTask = STATE.tasks.find(t=>t.linkedTrayId===ctx.tray.id && !t.done);
+      if(relatedTask){ relatedTask.done=true; await put('tasks', relatedTask); }
+      if(ctx.tray.sizeLocked){
+        ctx.tray.status='empty'; ctx.tray.quantity=0; await put('trays', ctx.tray);
+      } else {
+        await del('trays', ctx.tray.id);
+      }
+    } else if(ctx.kind==='planting'){
+      ctx.planting.active=false;
+      ctx.bed.history = ctx.bed.history||[];
+      ctx.bed.history.push({family:crop?crop.family:'Other', clearedDate:todayISO()});
+      await put('beds', ctx.bed);
+      const relatedTask = STATE.tasks.find(t=>t.linkedPlantingId===ctx.planting.id && !t.done);
+      if(relatedTask){ relatedTask.done=true; await put('tasks', relatedTask); }
+      if(crop){
+        const actualDays = daysBetween(ctx.planting.date, todayISO());
+        learnTiming(crop, ctx.planting.method==='direct' ? 'directSowToHarvest' : 'transplantToHarvest', actualDays);
+        await put('crops', crop);
+      }
+    }
+    await afterChange();
+    toast('Harvest saved 🧺');
+    backTo();
+  });
+}
+
+/* ======================= GREENHOUSE TAB ======================= */
+/* ======================= CROPS ======================= */
+function cropHasCurrentInstance(cropId){
+  if(STATE.trays.some(t=>t.cropId===cropId && t.status==='growing')) return true;
+  if(STATE.beds.some(b=>(b.plantings||[]).some(p=>p.active && p.cropId===cropId))) return true;
+  return false;
+}
+function whereIsCropNow(cropId){
+  const spots = [];
+  for(const t of STATE.trays.filter(t=>t.cropId===cropId && t.status==='growing')) spots.push(t.location);
+  for(const b of STATE.beds) if((b.plantings||[]).some(p=>p.active && p.cropId===cropId)) spots.push(b.name);
+  return [...new Set(spots)];
+}
+function cropTypeKey(crop){
+  const m = matchCrop(crop.name);
+  return (m ? m.name : crop.name).toLowerCase();
+}
+const TREATMENT_TYPES = ['Manure','Fertiliser','Insecticide','Pesticide','Weedkiller','Other'];
+function treatmentChipsHTML(){
+  return `<label style="margin-top:6px;">Treatments used (optional, tap any that apply)</label>
+    <div class="swatch-row" id="sowTagRow">${TREATMENT_TYPES.map(t=>`<button type="button" class="btn small secondary" data-tag="${t}">${t}</button>`).join('')}</div>`;
+}
+function wireTreatmentChips(container){
+  let picked = [];
+  container.querySelectorAll('[data-tag]').forEach(b=>b.addEventListener('click', ()=>{
+    const t = b.dataset.tag;
+    if(picked.includes(t)){ picked = picked.filter(x=>x!==t); b.classList.add('secondary'); }
+    else { picked.push(t); b.classList.remove('secondary'); }
+  }));
+  return ()=>picked.map(t=>({id:uid(), type:t, date:todayISO(), notes:'', by:who()}));
+}
+function renderCropList(){
+  const wrap=document.getElementById('cropList');
+  const current = STATE.crops.filter(c=>cropHasCurrentInstance(c.id))
+    .sort((a,b)=> cropTypeKey(a).localeCompare(cropTypeKey(b)) || a.name.localeCompare(b.name));
+  if(current.length===0){ wrap.innerHTML='<p class="empty-note">Nothing currently growing — sow or plant something and it will show up here.</p>'; return; }
+  wrap.innerHTML = current.map(c=>`
+    <div class="crop-card" data-crop="${c.id}">
+      <div class="crop-head">
+        <span class="fam-dot" style="background:${cropColor(c)};"></span>
+        <strong style="flex:1; cursor:pointer;" data-open="${c.id}">${escapeHTML(c.name)}</strong>
+        <button class="btn small danger" data-del="${c.id}">Remove</button>
+      </div>
+      <p class="tiny-muted" style="margin:2px 0 0; cursor:pointer;" data-open="${c.id}">Currently in: ${escapeHTML(whereIsCropNow(c.id).join(', '))}</p>
+    </div>`).join('');
+  wrap.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click', ()=> openEditCrop(el.dataset.open)));
+  wrap.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', async (e)=>{
+    e.stopPropagation();
+    if(await confirmDialog('Remove this crop from your list?')){ await del('crops',b.dataset.del); await afterChange(); }
+  }));
+}
+function openEditCrop(cropId){
+  const c = cropById(cropId); if(!c) return;
+  const tags = c.treatmentTags || [];
+  openModal(`<h3>Edit ${escapeHTML(c.name)}</h3>
+    <div class="form-row"><div><label>Name</label><input type="text" id="mName" value="${escapeAttr(c.name)}"></div></div>
+    <div class="row-heading">Sowing &amp; harvest timings</div>
+    <div class="timing-row"><input type="number" id="mSowToPot" value="${c.sowToPotOn??''}" placeholder="—"> days from sowing to planting out</div>
+    <div class="timing-row"><input type="number" id="mTransToHarvest" value="${c.transplantToHarvest??''}" placeholder="—"> days from planting out to harvest</div>
+    <div class="timing-row"><input type="number" id="mDirectToHarvest" value="${c.directSowToHarvest??''}" placeholder="—"> days from direct sowing to harvest</div>
+    <label style="margin-top:14px;">Treatments used (tap any that apply)</label>
+    <div class="swatch-row" id="tagRow" style="flex-wrap:wrap;">${TREATMENT_TYPES.map(t=>`<button type="button" class="btn small ${tags.includes(t)?'':'secondary'}" data-tag="${t}">${t}</button>`).join('')}</div>
+    <div class="form-row" style="margin-top:14px;"><div><label>Notes (optional)</label><textarea id="mNotes" rows="3" placeholder="e.g. product names, timing, care tips">${escapeHTML(c.notes||'')}</textarea></div></div>
+    <button class="btn big" id="mSave">Save</button>`, true);
+  let pickedTags = tags.slice();
+  modalContent.querySelectorAll('[data-tag]').forEach(b=>b.addEventListener('click', ()=>{
+    const t = b.dataset.tag;
+    if(pickedTags.includes(t)){ pickedTags = pickedTags.filter(x=>x!==t); b.classList.add('secondary'); }
+    else { pickedTags.push(t); b.classList.remove('secondary'); }
+  }));
+  document.getElementById('mSave').addEventListener('click', async ()=>{
+    c.name = document.getElementById('mName').value.trim()||c.name;
+    c.sowToPotOn = document.getElementById('mSowToPot').value===''?null:parseInt(document.getElementById('mSowToPot').value);
+    c.transplantToHarvest = document.getElementById('mTransToHarvest').value===''?null:parseInt(document.getElementById('mTransToHarvest').value);
+    c.directSowToHarvest = document.getElementById('mDirectToHarvest').value===''?null:parseInt(document.getElementById('mDirectToHarvest').value);
+    c.notes = document.getElementById('mNotes').value.trim();
+    c.treatmentTags = pickedTags;
+    await put('crops', c); await afterChange();
+    closeModal();
+  });
+}
+
+/* ======================= HISTORY ======================= */
+let historySort = 'date';
+function renderHistory(){
+  const wrap = document.getElementById('historyList');
+  if(!wrap) return;
+  document.querySelectorAll('#historySortRow [data-sort]').forEach(b=>b.classList.toggle('picked', b.dataset.sort===historySort));
+  let items = STATE.harvests.slice();
+  if(historySort==='name') items.sort((a,b)=> a.cropName.localeCompare(b.cropName) || b.harvestDate.localeCompare(a.harvestDate));
+  else if(historySort==='type') items.sort((a,b)=> (a.family||'').localeCompare(b.family||'') || a.cropName.localeCompare(b.cropName));
+  else if(historySort==='bed') items.sort((a,b)=> (a.locationLabel||'').localeCompare(b.locationLabel||'') || b.harvestDate.localeCompare(a.harvestDate));
+  else items.sort((a,b)=> b.harvestDate.localeCompare(a.harvestDate));
+  if(items.length===0){ wrap.innerHTML = '<p class="empty-note">Nothing harvested yet — this fills up as you go.</p>'; return; }
+  wrap.innerHTML = items.map(h=>`
+    <div class="crop-card" data-h="${h.id}">
+      <div class="crop-head"><span class="fam-dot" style="background:${h.cropId&&cropById(h.cropId)?cropColor(cropById(h.cropId)):colorForCropName(h.cropName||'?')};"></span>
+        <strong style="flex:1;">${escapeHTML(h.cropName)}</strong>
+        <span class="tiny-muted">${dayLabel(h.harvestDate)}</span></div>
+      <p class="muted" style="margin:4px 0 0;">${escapeHTML(h.locationLabel||'')} &middot; ${h.rating}/10${h.area?(' &middot; '+h.area+'m&sup2;'):''}</p>
+    </div>`).join('');
+  wrap.querySelectorAll('[data-h]').forEach(el=>el.addEventListener('click', ()=> openHistoryDetail(el.dataset.h)));
+}
+document.querySelectorAll('#historySortRow [data-sort]').forEach(b=>b.addEventListener('click', ()=>{ historySort=b.dataset.sort; renderHistory(); }));
+function openHistoryDetail(hid){
+  const h = STATE.harvests.find(x=>x.id===hid); if(!h) return;
+  const others = STATE.harvests.filter(x=>x.cropName===h.cropName && x.id!==h.id).sort((a,b)=>b.harvestDate.localeCompare(a.harvestDate));
+  openModal(`<h3>${escapeHTML(h.cropName)}</h3>
+    <div class="planting-row"><span class="pname">Harvested</span><span class="pdate">${dayLabel(h.harvestDate)}${h.by?' &middot; by '+escapeHTML(h.by):''}</span></div>
+    ${h.plantedDate?`<div class="planting-row"><span class="pname">Planted</span><span class="pdate">${dayLabel(h.plantedDate)}</span></div>`:''}
+    ${h.method?`<div class="planting-row"><span class="pname">Method</span><span class="pdate">${escapeHTML(h.method)}</span></div>`:''}
+    <div class="planting-row"><span class="pname">Where</span><span class="pdate">${escapeHTML(h.locationLabel||'')}</span></div>
+    ${h.area?`<div class="planting-row"><span class="pname">Area</span><span class="pdate">${h.area}m&sup2;</span></div>`:''}
+    <div class="planting-row"><span class="pname">Rating</span><span class="pdate">${h.rating}/10</span></div>
+    ${h.notes?`<div class="planting-row"><span class="pname">Notes</span><span class="pdate">${escapeHTML(h.notes)}</span></div>`:''}
+    ${h.weatherSummary?`<div class="planting-row"><span class="pname">Weather while growing</span><span class="pdate">avg ${h.weatherSummary.meanTempMax}&deg;/${h.weatherSummary.meanTempMin}&deg;, ${h.weatherSummary.totalRain}mm over ${h.weatherSummary.days} days</span></div>`:''}
+    ${(h.treatments&&h.treatments.length)?`<div class="row-heading">Treatments used</div>${h.treatments.map(t=>`<div class="muted" style="font-size:13px;">${escapeHTML(t.type)}${t.notes?': '+escapeHTML(t.notes):''}</div>`).join('')}`:''}
+    ${others.length?`<div class="row-heading">Other times growing ${escapeHTML(h.cropName)}</div>${others.slice(0,6).map(o=>`<div class="planting-row"><span class="pname">${dayLabel(o.harvestDate)}</span><span class="pdate">${o.rating}/10${o.weatherSummary?' &middot; avg '+o.weatherSummary.meanTempMax+'&deg;':''}</span></div>`).join('')}`:''}
+  `);
+}
+document.getElementById('btnNewCrop').addEventListener('click', async ()=>{
+  await put('crops', {id:uid(), name:'New crop', family:'Other', sowToPotOn:null, transplantToHarvest:null, directSowToHarvest:null, addedBy:who(), color:CROP_COLORS[Math.floor(Math.random()*CROP_COLORS.length)]});
+  await afterChange();
+});
+
+/* ======================= SHARING / SYNC ======================= */
+const SHARED_META_KEYS = ['plotName','plotWidthM','plotDepthM','plotShape','groundColor','postcode','lat','lon','thFrost','thRain','thWind','customContainerSizes','treatmentReasons'];
+let supa = null, syncChannel = null, pushTimer = null, applyingRemote = false;
+
+async function afterChange(){
+  if(!restoring && !applyingRemote){
+    if(lastSnapshot){ undoStack.push(lastSnapshot); if(undoStack.length>30) undoStack.shift(); redoStack=[]; }
+  }
+  await loadAll();
+  renderAll();
+  lastSnapshot = snapshotState();
+  if(supa && !applyingRemote && !restoring) schedulePush();
+}
+function buildSyncPayload(){
+  const meta = {};
+  for(const k of SHARED_META_KEYS) meta[k] = STATE.settings[k];
+  return { crops:STATE.crops, beds:STATE.beds, features:STATE.features, trays:STATE.trays, tasks:STATE.tasks, harvests:STATE.harvests, meta };
+}
+function schedulePush(){ clearTimeout(pushTimer); pushTimer = setTimeout(pushNow, 700); }
+async function pushNow(){
+  if(!supa) return;
+  const code = await getMeta('syncCode', null);
+  if(!code) return;
+  try{ await supa.from('plots').upsert({ code, data: buildSyncPayload(), updated_at: new Date().toISOString() }); }
+  catch(e){ /* offline — will catch up once reconnected */ }
+}
+async function applyRemotePayload(payload){
+  if(!payload) return;
+  applyingRemote = true;
+  try{
+    for(const store of ['crops','beds','features','trays','tasks','harvests']){
+      await clearStore(store);
+      for(const item of (payload[store]||[])) await put(store, item);
+    }
+    if(payload.meta) for(const k of SHARED_META_KEYS) if(payload.meta[k]!==undefined) await setMeta(k, payload.meta[k]);
+    await loadAll(); renderAll();
+    lastSnapshot = snapshotState();
+  } finally { applyingRemote = false; }
+}
+async function connectSync(url, key, code){
+  supa = window.supabase.createClient(url, key);
+  await setMeta('syncUrl', url); await setMeta('syncKey', key); await setMeta('syncCode', code);
+  try{
+    const { data } = await supa.from('plots').select('data').eq('code', code).maybeSingle();
+    if(data && data.data) await applyRemotePayload(data.data);
+    else await pushNow();
+  }catch(e){ /* will retry once online */ }
+  subscribeSync(code);
+}
+function subscribeSync(code){
+  if(syncChannel) supa.removeChannel(syncChannel);
+  syncChannel = supa.channel('plot-'+code)
+    .on('postgres_changes', {event:'UPDATE', schema:'public', table:'plots', filter:'code=eq.'+code}, (payload)=>{
+      if(payload.new && payload.new.data) applyRemotePayload(payload.new.data);
+    })
+    .subscribe();
+}
+function randomCode(){
+  const words = ['willow','bramble','meadow','harvest','furrow','trowel','robin','clover','acorn','thistle','orchard','hazel'];
+  return words[Math.floor(Math.random()*words.length)] + '-' + Math.floor(Math.random()*90+10);
+}
+function renderStructureList(){
+  const wrap = document.getElementById('structureList');
+  if(!wrap) return;
+  const items = [
+    ...STATE.beds.map(b=>({name:b.name, sub:b.raised?'Raised bed':'Bed', icon:'🌱', kind:'bed', id:b.id, type:null})),
+    ...STATE.features.map(f=>({name:f.label||FEATURE_TYPES[f.type].label, sub:FEATURE_TYPES[f.type].label, icon:(FEATURE_TYPES[f.type].icon.startsWith('<svg')?'':FEATURE_TYPES[f.type].icon)||'📍', kind:'feature', id:f.id, type:f.type})),
+  ].sort((a,b)=>a.name.localeCompare(b.name));
+  if(items.length===0){ wrap.innerHTML='<p class="empty-note">Nothing on your map yet.</p>'; return; }
+  wrap.innerHTML = items.map(it=>`<div class="planting-row" data-open="${it.kind}|${it.id}|${it.type||''}" style="cursor:pointer;">
+    <span class="pname">${it.icon} ${escapeHTML(it.name)}</span>
+    <span class="pdate">${escapeHTML(it.sub)}</span></div>`).join('');
+  wrap.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click', ()=>{
+    const [kind,id,type] = el.dataset.open.split('|');
+    openObjectDetail(kind, id, type||undefined);
+  }));
+}
+function renderSharePanel(){
+  const body = document.getElementById('shareBody');
+  const code = STATE.settings.syncCode;
+  const nameField = `<div class="form-row" style="margin-top:14px;"><div><label>Your name (optional)</label><input type="text" id="gardenerNameInput" placeholder="e.g. Dave" value="${escapeAttr(STATE.settings.gardenerName||'')}"></div></div><p class="muted" style="margin-top:-6px;">Noted next to things you plant, treat, move or harvest.</p>`;
+  if(code){
+    body.innerHTML = `<p>✅ Sharing is on — every gardener sees the same plot automatically.</p>
+      <p class="muted">Your plot's code: <strong>${escapeHTML(code)}</strong></p>
+      <div class="btn-row"><button class="btn" id="btnInvite">Invite another gardener</button><button class="btn secondary" id="btnTurnOff">Turn off sharing</button></div>
+      ${nameField}`;
+    document.getElementById('btnInvite').addEventListener('click', async ()=>{
+      const invite = `${STATE.settings.syncUrl}|${STATE.settings.syncKey}|${code}`;
+      const text = `Join our allotment on My Plot — open the app, go to Setup, and paste this into "Join a shared plot":\n\n${invite}`;
+      if(navigator.share){ try{ await navigator.share({text}); return; }catch(e){} }
+      try{ await navigator.clipboard.writeText(invite); toast('Invite copied — send it to them'); }
+      catch(e){ openModal(`<h3>Invite text</h3><textarea readonly rows="4" onclick="this.select()">${escapeHTML(invite)}</textarea>`); }
+    });
+    document.getElementById('btnTurnOff').addEventListener('click', async ()=>{
+      if(!(await confirmDialog('Stop sharing on this device? Your own copy of the data stays put.'))) return;
+      if(syncChannel && supa) supa.removeChannel(syncChannel);
+      supa=null; syncChannel=null;
+      await setMeta('syncUrl',''); await setMeta('syncKey',''); await setMeta('syncCode','');
+      await afterChange();
+    });
+  } else {
+    body.innerHTML = `<p class="muted">Turn this on and every gardener sees the same plot, tasks and harvests automatically — nothing to check or press.</p>
+      <div class="btn-row"><button class="btn" id="btnStartSharing">Turn on sharing</button></div>
+      <p class="muted" style="margin-top:16px;">Already got an invite from another gardener?</p>
+      <div class="form-row"><div><input type="text" id="joinCodeInput" placeholder="Paste the invite text here"></div></div>
+      <button class="btn secondary" id="btnJoin">Join their plot</button>
+      ${nameField}`;
+    document.getElementById('btnStartSharing').addEventListener('click', openStartSharingModal);
+    document.getElementById('btnJoin').addEventListener('click', async ()=>{
+      const raw = document.getElementById('joinCodeInput').value.trim();
+      const parts = raw.split('|');
+      if(parts.length!==3){ toast('That invite text looks incomplete'); return; }
+      const [url,key,joinCode] = parts;
+      if(!(await confirmDialog('This replaces what is on this device with the shared plot. Continue?'))) return;
+      await connectSync(url.trim(), key.trim(), joinCode.trim());
+      toast('Connected — sharing is on');
+    });
+  }
+  document.getElementById('gardenerNameInput').addEventListener('change', async (e)=>{
+    await setMeta('gardenerName', e.target.value.trim()); STATE.settings.gardenerName = e.target.value.trim();
+  });
+}
+function openStartSharingModal(){
+  openModal(`<h3>Set up sharing (one-time)</h3>
+    <p class="muted">One gardener does this once. It takes about ten minutes and nobody else has to touch it.</p>
+    <ol style="padding-left:20px; font-size:14.5px; line-height:1.7;">
+      <li>On a computer or phone, go to <strong>supabase.com</strong> and make a free account.</li>
+      <li>Click <strong>New project</strong>, give it any name, and wait about a minute.</li>
+      <li>Open <strong>SQL Editor</strong>, paste the box below in, and click <strong>Run</strong>.</li>
+    </ol>
+    <textarea readonly rows="5" onclick="this.select()">create table plots (code text primary key, data jsonb, updated_at timestamptz default now());
+alter table plots enable row level security;
+create policy "public access" on plots for all using (true) with check (true);
+alter publication supabase_realtime add table plots;</textarea>
+    <ol start="4" style="padding-left:20px; font-size:14.5px; line-height:1.7; margin-top:10px;">
+      <li>Click the green <strong>Connect</strong> button near the top of the project page. Copy the <strong>Project URL</strong> and the <strong>API key</strong> (sometimes called "anon" or "publishable") and paste them below.</li>
+    </ol>
+    <div class="form-row"><div><label>Project URL</label><input type="text" id="mUrl" placeholder="https://xxxx.supabase.co"></div></div>
+    <div class="form-row"><div><label>API key</label><input type="text" id="mKey" placeholder="eyJ... or sb_publishable_..."></div></div>
+    <button class="btn big" id="mConnect">Connect</button>`);
+  document.getElementById('mConnect').addEventListener('click', async ()=>{
+    const url = document.getElementById('mUrl').value.trim();
+    const key = document.getElementById('mKey').value.trim();
+    if(!url || !key){ toast('Both boxes are needed'); return; }
+    const code = randomCode();
+    await connectSync(url, key, code);
+    closeModal(); toast('Sharing is on');
+  });
+}
+
+/* ======================= SETUP ======================= */
+document.getElementById('btnLookupPostcode').addEventListener('click', async ()=>{
+  const pc = document.getElementById('postcodeInput').value.trim();
+  const status = document.getElementById('locStatus');
+  if(!pc){ status.textContent='Type in a postcode first.'; return; }
+  if(!navigator.onLine){ status.textContent="You're offline — try again once you have a signal."; return; }
+  status.textContent='Looking...';
+  try{
+    const clean = pc.trim();
+    const res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(clean)}`);
+    if(!res.ok){
+      status.textContent = res.status===404 ? "Couldn't find that postcode — check it's typed right." : `Something went wrong (error ${res.status}).`;
+      return;
+    }
+    const data = await res.json();
+    if(data.status===200 && data.result){
+      await setMeta('lat', data.result.latitude); await setMeta('lon', data.result.longitude); await setMeta('postcode', clean);
+      status.textContent = `Found it — ${data.result.admin_district}.`;
+      await afterChange(); await fetchWeather(true);
+    } else status.textContent = "Couldn't find that postcode.";
+  }catch(e){ status.textContent='Could not reach the internet — check your connection and try again.'; }
+});
+document.getElementById('notifToggle').addEventListener('change', async (e)=>{
+  const status=document.getElementById('notifStatus');
+  if(e.target.checked){
+    if(!('Notification' in window)){ status.textContent='Not supported here.'; e.target.checked=false; return; }
+    const perm = await Notification.requestPermission();
+    if(perm!=='granted'){ status.textContent='Allow notifications in your browser to use this.'; e.target.checked=false; await setMeta('notifOn',false); return; }
+    status.textContent='Alerts are on.'; await setMeta('notifOn',true);
+  } else { status.textContent='Alerts are off.'; await setMeta('notifOn',false); }
+  await loadAll();
+});
+document.querySelectorAll('input[name=notifLevel]').forEach(r=>r.addEventListener('change', async (e)=>{
+  await setMeta('notifLevel', e.target.value); STATE.settings.notifLevel = e.target.value;
+}));
+document.getElementById('btnSaveThresholds').addEventListener('click', async ()=>{
+  await setMeta('thFrost', parseFloat(document.getElementById('thFrost').value));
+  await setMeta('thRain', parseFloat(document.getElementById('thRain').value));
+  await setMeta('thWind', parseFloat(document.getElementById('thWind').value));
+  await afterChange(); fetchWeather();
+});
+document.getElementById('btnSetPlotSize').addEventListener('click', ()=>{
+  requireUnlock(async ()=>{
+    const w = parseFloat(document.getElementById('plotWidthInput').value);
+    const h = parseFloat(document.getElementById('plotDepthInput').value);
+    if(!w || !h){ toast('Enter both width and depth'); return; }
+    const newShape = (STATE.settings.plotShape && STATE.settings.plotShape.length>=3) ? scaleShapeToSize(STATE.settings.plotShape, w, h) : defaultShape(w,h);
+    await setMeta('plotWidthM', w); await setMeta('plotDepthM', h); await setMeta('plotShape', newShape);
+    await afterChange(); toast('✓ Size saved');
+  });
+});
+document.getElementById('btnReshape').addEventListener('click', ()=>{
+  requireUnlock(()=>{ outlineEditing = true; goToTab('map'); renderAll(); });
+});
+
+document.getElementById('btnExport').addEventListener('click', async ()=>{
+  const dump = { crops:await getAll('crops'), beds:await getAll('beds'), features:await getAll('features'),
+    trays:await getAll('trays'), tasks:await getAll('tasks'), harvests:await getAll('harvests'), meta:await getAll('meta'), exportedAt:new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(dump,null,2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`my-plot-backup-${todayISO()}.json`; a.click();
+});
+document.getElementById('importFile').addEventListener('change', async (e)=>{
+  const file=e.target.files[0]; if(!file) return;
+  const text = await file.text();
+  try{
+    const dump = JSON.parse(text);
+    for(const store of ['crops','beds','features','trays','tasks','harvests','meta']) if(dump[store]) for(const obj of dump[store]) await put(store,obj);
+    await afterChange(); alert('Backup loaded.');
+  }catch(err){ alert("Couldn't read that file."); }
+});
+
+/* ======================= UTIL ======================= */
+function escapeHTML(s){ return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function escapeAttr(s){ return escapeHTML(s); }
+
+/* ======================= MAIN RENDER ======================= */
+function renderAll(){
+  renderPlacingBanner();
+  renderMap(); renderShelf(); renderJobsView(); renderCropList(); renderSharePanel(); renderHistory(); renderStructureList();
+  plotNameEl.textContent = STATE.settings.plotName || 'My Plot';
+  document.title = STATE.settings.plotName || 'My Plot';
+  if(STATE.settings.postcode) document.getElementById('postcodeInput').value = STATE.settings.postcode;
+  document.getElementById('thFrost').value = STATE.settings.thFrost;
+  document.getElementById('thRain').value = STATE.settings.thRain;
+  document.getElementById('thWind').value = STATE.settings.thWind;
+  document.getElementById('notifToggle').checked = !!STATE.settings.notifOn;
+  document.getElementById('notifStatus').textContent = STATE.settings.notifOn ? 'Alerts are on.' : 'Alerts are off.';
+  const lvlInput = document.querySelector(`input[name=notifLevel][value="${STATE.settings.notifLevel||'advice'}"]`);
+  if(lvlInput) lvlInput.checked = true;
+  if(STATE.settings.plotWidthM) document.getElementById('plotWidthInput').value = STATE.settings.plotWidthM;
+  if(STATE.settings.plotDepthM) document.getElementById('plotDepthInput').value = STATE.settings.plotDepthM;
+  const gsw = document.getElementById('groundSwatchRow');
+  gsw.innerHTML = GROUND_COLORS.map(c=>`<div class="swatch ${c===STATE.settings.groundColor?'picked':''}" data-gc="${c}" style="background:${c};"></div>`).join('');
+  gsw.querySelectorAll('.swatch').forEach(s=>s.addEventListener('click', async ()=>{ await setMeta('groundColor', s.dataset.gc); await afterChange(); }));
+  const dl = document.getElementById('cropSuggestions');
+  dl.innerHTML = KNOWN_CROPS.map(c=>`<option value="${escapeAttr(c.name)}">`).join('');
+  document.getElementById('reasonSuggestions').innerHTML = (STATE.settings.treatmentReasons||[]).map(r=>`<option value="${escapeAttr(r)}">`).join('');
+  document.getElementById('btnUndo').disabled = undoStack.length===0;
+  document.getElementById('btnRedo').disabled = redoStack.length===0;
+}
+
+/* ======================= INIT ======================= */
+async function backfillMissingPositions(){
+  let changed = false;
+  // Trays, grouped by location + tier
+  const groups = {};
+  for(const t of STATE.trays.filter(t=>t.status==='growing'||t.status==='empty')){
+    const key = t.location+'|'+(t.tierId||'');
+    groups[key] = groups[key] || [];
+    groups[key].push(t);
+  }
+  for(const key of Object.keys(groups)){
+    const trays = groups[key];
+    if(trays.every(t=>t.px!=null && t.py!=null && t.pw!=null && t.ph!=null)) continue;
+    const feat = STATE.features.find(f=>FEATURE_TYPES[f.type] && FEATURE_TYPES[f.type].label===trays[0].location);
+    const tiers = feat ? getTiers(feat) : null;
+    const tier = tiers ? (tiers.find(t=>t.id===trays[0].tierId) || tiers[0]) : {w:2,h:1};
+    const placed = [];
+    for(const t of trays){
+      if(t.px!=null && t.py!=null && t.pw!=null && t.ph!=null){ placed.push(t); continue; }
+      const defaultSize = t.pw && t.ph ? {w:t.pw,h:t.ph} : {w:Math.min(tier.w/2,1), h:Math.min(tier.h/3,0.5)};
+      const slot = nextFreeSlot(tier.w, tier.h, placed, defaultSize.w, defaultSize.h);
+      t.px=slot.px; t.py=slot.py; t.pw=slot.pw; t.ph=slot.ph;
+      placed.push(t); await put('trays', t); changed = true;
+    }
+  }
+  // Bed plantings
+  for(const bed of STATE.beds){
+    const active = (bed.plantings||[]).filter(p=>p.active);
+    if(active.length===0 || active.every(p=>p.px!=null && p.py!=null && p.pw!=null && p.ph!=null)) continue;
+    const placed = [];
+    let bedChanged = false;
+    for(const p of active){
+      if(p.px!=null && p.py!=null && p.pw!=null && p.ph!=null){ placed.push(p); continue; }
+      Object.assign(p, nextFreeSlot(bed.w, bed.h, placed, Math.min(bed.w/2,1.5), Math.min(bed.h/3,0.6)));
+      placed.push(p); bedChanged = true;
+    }
+    if(bedChanged){ await put('beds', bed); changed = true; }
+  }
+  if(changed) await loadAll();
+}
+(async function init(){
+  db = await openDB();
+  await loadAll();
+  await backfillMissingPositions();
+  lastSnapshot = snapshotState();
+  renderAll();
+  if(navigator.onLine) fetchWeather();
+  setInterval(()=>{ if(navigator.onLine) fetchWeather(); }, 30*60*1000);
+  if('serviceWorker' in navigator){ navigator.serviceWorker.register('./sw.js').catch(()=>{}); }
+  if(STATE.settings.syncCode && STATE.settings.syncUrl && STATE.settings.syncKey && navigator.onLine && window.supabase){
+    connectSync(STATE.settings.syncUrl, STATE.settings.syncKey, STATE.settings.syncCode).catch(()=>{});
+  }
+  window.addEventListener('online', ()=>{
+    if(STATE.settings.syncCode && STATE.settings.syncUrl && STATE.settings.syncKey && !supa && window.supabase){
+      connectSync(STATE.settings.syncUrl, STATE.settings.syncKey, STATE.settings.syncCode).catch(()=>{});
+    }
+  });
+  window.addEventListener('resize', ()=>{ if(document.getElementById('view-map').classList.contains('active')) renderMap(); });
+})();
+</script>
+</body>
+</html>
